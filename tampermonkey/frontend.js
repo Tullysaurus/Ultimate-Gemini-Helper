@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UGH Frontend (UI & Interaction)
 // @namespace    http://tampermonkey.net/
-// @version      1.0.0
+// @version      1.1.0
 // @description  UI for Universal Gemini Helper. Depends on UGH Backend.
 // @author       Tullysaurus
 // @license      GPL-3.0
@@ -28,8 +28,8 @@
         /* Floating UI Container */
         #ugh-floating-container {
             position: fixed; bottom: 20px; left: 20px;
-            display: flex; flex-direction: row; align-items: flex-end;
             z-index: 999998;
+            /* Flex removed to prevent container from sizing to hidden content */
         }
 
         #ugh-floating-trigger {
@@ -38,21 +38,40 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.3); cursor: pointer;
             display: flex; align-items: center; justify-content: center;
             transition: transform 0.2s, background 0.2s; z-index: 2;
+            position: relative; /* Context for stacking */
         }
         #ugh-floating-trigger:hover { transform: scale(1.05); background: #1557b0; }
 
+        /* Hover Menu */
         #ugh-hover-menu {
-            opacity: 0; visibility: hidden; transform: translateX(-20px);
+            position: absolute;
+            left: 68px; /* 56px button + 12px gap */
+            bottom: 0;
+            opacity: 0; visibility: hidden;
+            transform: translateX(-15px);
             transition: all 0.2s cubic-bezier(0.4, 0.0, 0.2, 1);
             background: white; border-radius: 12px; padding: 12px;
             box-shadow: 0 4px 20px rgba(0,0,0,0.15); border: 1px solid #dadce0;
-            margin-left: 12px; margin-bottom: 0; width: 260px;
+            width: 260px;
             display: flex; flex-direction: column; gap: 10px; z-index: 1;
         }
-        #ugh-floating-container:hover #ugh-hover-menu {
+
+        /* Invisible Bridge to cover the gap so mouse doesn't lose focus */
+        #ugh-hover-menu::before {
+            content: '';
+            position: absolute;
+            left: -20px; /* Covers the gap between button and menu */
+            top: 0; bottom: 0; width: 20px;
+            background: transparent;
+        }
+
+        /* SHOW LOGIC: Show if Trigger is hovered OR Menu is hovered */
+        #ugh-floating-trigger:hover ~ #ugh-hover-menu,
+        #ugh-hover-menu:hover {
             opacity: 1; visibility: visible; transform: translateX(0);
         }
 
+        /* Menu Items */
         .ugh-menu-btn {
             background: #f1f3f4; border: none; padding: 8px 12px; border-radius: 8px;
             cursor: pointer; font-family: 'Roboto', sans-serif; font-size: 13px; font-weight: 500;
