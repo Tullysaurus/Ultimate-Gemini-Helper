@@ -9,6 +9,8 @@ from fastapi import HTTPException
 
 load_dotenv()
 
+default_model = "gemini-3.0-flash"
+
 SECURE_1PSID = os.getenv("SECURE_1PSID")
 SECURE_1PSIDTS = os.getenv("SECURE_1PSIDTS")
 
@@ -19,7 +21,7 @@ client = GeminiClient(SECURE_1PSID, SECURE_1PSIDTS)
 asyncio.run(client.init(timeout=30, auto_close=False, auto_refresh=True))
 
 
-async def generate_response(prompt_text: str, image_data: bytes = None, model : str="gemini-3.0-flash-thinking"):
+async def generate_response(prompt_text: str, image_data: bytes = None, model : str=default_model):
     if image_data:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as temp_file:
             temp_file.write(image_data)
@@ -53,7 +55,7 @@ async def generate_response(prompt_text: str, image_data: bytes = None, model : 
         ]
     }
 
-async def process_gemini_request(contents, model="gemini-3.0-flash-thinking"):
+async def process_gemini_request(contents, model=default_model):
     prompt_text = ""
     image_data = None    
     
