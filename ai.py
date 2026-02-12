@@ -1,6 +1,7 @@
 import os
 import base64
 import asyncio
+import tempfile
 from gemini_webapi import GeminiClient
 from dotenv import load_dotenv
 from fastapi import HTTPException
@@ -19,14 +20,18 @@ asyncio.run(client.init(timeout=30, auto_close=False, auto_refresh=True))
 
 async def generate_response(prompt_text: str, image_data: bytes = None):
     if image_data:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as temp_file:
+            temp_file.write(image_data)
+            temp_file_path = temp_file.name
+
         try:
-            response = await client.generate_content(prompt_text, image=image_data)
-        except TypeError as e:
-            if "unexpected keyword argument 'image'" in str(e):
-                print(f"Warning: Image upload failed due to library incompatibility ({e}). Falling back to text-only.")
-                response = await client.generate_content(prompt_text)
-            else:
-                raise e
+            response = await client.generate_content(prompt_text, files=[temp_file_path])
+        except Exception as e:
+            print(f"Warning: Image generation failed ({e}). Falling back to text-only.")
+            response = await client.generate_content(prompt_text)
+        finally:
+            if os.path.exists(temp_file_path):
+                os.remove(temp_file_path)
     else:
         response = await client.generate_content(prompt_text)
     
