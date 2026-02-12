@@ -1,11 +1,14 @@
 import os
+import hashlib
+from datetime import datetime
 from fastapi import FastAPI, HTTPException, Query, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from dotenv import load_dotenv
 from sqlalchemy.orm import Session
-from database import get_db, Question
+from database import get_db
+from schema import Question, SavedQuestion
 from ai import process_gemini_request
 
 
@@ -68,19 +71,47 @@ class AnswerSubmission(BaseModel):
     correctAnswers: Any
     answerType: Optional[str] = None
 
+# --- Helpers ---
+
+def get_prompt_hash(contents: List[Content]) -> tuple[str, str]:
+    prompt_text = ""
+    for content in contents:
+        for part in content.parts:
+            if part.text:
+                prompt_text += part.text + "\n"
+    
+    prompt_text = prompt_text.strip()
+    return prompt_text, hashlib.sha256(prompt_text.encode()).hexdigest()
+
 # --- Endpoints ---
 
 @app.post("/ai")
 async def generate_content(
     request: GenerateContentRequest, 
-    key: str = Query(..., description="The API Key") # catches ?key=... from JS
+    key: str = Query(..., description="The API Key"), # catches ?key=... from JS
+    db: Session = Depends(get_db)
 ):
     # 1. Validate API Key
     if key != VALID_API_KEY:
         raise HTTPException(status_code=400, detail="Invalid API Key")
 
     try:
-        return await process_gemini_request(request.contents)
+        # Process request
+        response = await process_gemini_request(request.contents)
+
+        # Save to DB (Overwrite)
+        prompt_text, prompt_hash = get_prompt_hash(request.contents)
+        saved_q = db.query(SavedQuestion).filter(SavedQuestion.prompt_hash == prompt_hash).first()
+        
+        if saved_q:
+            saved_q.response = response
+            saved_q.created_at = datetime.utcnow()
+        else:
+            saved_q = SavedQuestion(prompt_hash=prompt_hash, prompt=prompt_text, response=response)
+            db.add(saved_q)
+        db.commit()
+
+        return response
 
     except Exception as e:
         print(f"Error: {e}")
@@ -92,4 +123,3 @@ async def generate_content(
                 "status": "INTERNAL_ERROR"
             }
         }
-
