@@ -22,6 +22,13 @@
 (function () {
   "use strict";
 
+  // === ICONS ===
+  const ICONS = {
+      psychology: `<svg xmlns="http://www.w3.org/2000/svg" enable-background="new 0 0 24 24" height="28px" viewBox="0 0 24 24" width="28px" fill="#e3e3e3"><g><rect fill="none" height="24" width="24"/></g><g><g><path d="M15.82,7.22l-1,0.4c-0.21-0.16-0.43-0.29-0.67-0.39L14,6.17C13.98,6.07,13.9,6,13.8,6h-1.6c-0.1,0-0.18,0.07-0.19,0.17 l-0.15,1.06c-0.24,0.1-0.47,0.23-0.67,0.39l-1-0.4c-0.09-0.03-0.2,0-0.24,0.09l-0.8,1.38c-0.05,0.09-0.03,0.2,0.05,0.26l0.85,0.66 C10.02,9.73,10,9.87,10,10c0,0.13,0.01,0.26,0.03,0.39l-0.84,0.66c-0.08,0.06-0.1,0.17-0.05,0.25l0.8,1.39 c0.05,0.09,0.15,0.12,0.25,0.09l0.99-0.4c0.21,0.16,0.43,0.29,0.68,0.39L12,13.83c0.02,0.1,0.1,0.17,0.2,0.17h1.6 c0.1,0,0.18-0.07,0.2-0.17l0.15-1.06c0.24-0.1,0.47-0.23,0.67-0.39l0.99,0.4c0.09,0.04,0.2,0,0.24-0.09l0.8-1.39 c0.05-0.09,0.03-0.19-0.05-0.25l-0.83-0.66C15.99,10.26,16,10.13,16,10c0-0.14-0.01-0.27-0.03-0.39l0.85-0.66 c0.08-0.06,0.1-0.17,0.05-0.26l-0.8-1.38C16.02,7.22,15.91,7.19,15.82,7.22z M13,11.43c-0.79,0-1.43-0.64-1.43-1.43 S12.21,8.57,13,8.57s1.43,0.64,1.43,1.43S13.79,11.43,13,11.43z"/><path d="M19.94,9.06c-0.43-3.27-3.23-5.86-6.53-6.05C13.27,3,13.14,3,13,3C9.47,3,6.57,5.61,6.08,9l-1.93,3.48 C3.74,13.14,4.22,14,5,14h1v2c0,1.1,0.9,2,2,2h1v3h7v-4.68C18.62,15.07,20.35,12.24,19.94,9.06z M14.89,14.63L14,15.05V19h-3v-3H8 v-4H6.7l1.33-2.33C8.21,7.06,10.35,5,13,5c2.76,0,5,2.24,5,5C18,12.09,16.71,13.88,14.89,14.63z"/></g></g></svg>`,
+      close: `<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px" fill="currentColor"><path d="M0 0h24v24H0V0z" fill="none"/><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>`,
+      add: `<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px" fill="currentColor"><path d="M0 0h24v24H0V0z" fill="none"/><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>`,
+      remove: `<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px" fill="currentColor"><path d="M0 0h24v24H0V0z" fill="none"/><path d="M19 13H5v-2h14v2z"/></svg>`
+  };
 
   // === SHARED CONSTANTS ===
   const UI_MODS_ENABLED_KEY = "uets_ui_modifications_enabled";
@@ -108,26 +115,154 @@
 
   // === SHARED STYLES ===
   GM_addStyle(`
-  @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700&display=swap');@import url('https://fonts.googleapis.com/icon?family=Material+Icons+Outlined');:root{--md-primary:#6750A4;--md-primary-container:#EADDFF;--md-on-primary:#FFFFFF;--md-on-primary-container:#21005D;--md-secondary:#625B71;--md-secondary-container:#E8DEF8;--md-on-secondary:#FFFFFF;--md-on-secondary-container:#1D192B;--md-tertiary:#7D5260;--md-tertiary-container:#FFD8E4;--md-on-tertiary:#FFFFFF;--md-on-tertiary-container:#31111D;--md-surface:#FEF7FF;--md-surface-dim:#DED8E1;--md-surface-bright:#FEF7FF;--md-surface-container-lowest:#FFFFFF;--md-surface-container-low:#F7F2FA;--md-surface-container:#F1ECF4;--md-surface-container-high:#ECE6F0;--md-surface-container-highest:#E6E0E9;--md-on-surface:#1C1B1F;--md-on-surface-variant:#49454F;--md-outline:#79747E;--md-outline-variant:#CAC4D0;--md-error:#B3261E;--md-error-container:#F9DEDC;--md-on-error:#FFFFFF;--md-on-error-container:#410E0B;--md-shadow:#000000}.uets-card{background:var(--md-surface-container);border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);overflow:hidden;font-family:'Roboto', -apple-system, BlinkMacSystemFont, sans-serif}.uets-elevated-card{background:var(--md-surface-container-low);border-radius:12px;box-shadow:0 3px 6px rgba(0,0,0,0.16), 0 3px 6px rgba(0,0,0,0.23);overflow:hidden;font-family:'Roboto', -apple-system, BlinkMacSystemFont, sans-serif}.uets-filled-button{background:var(--md-primary);color:var(--md-on-primary);border:none;border-radius:20px;padding:10px 24px;font-family:'Roboto', sans-serif;font-weight:500;font-size:14px;cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:all 0.2s cubic-bezier(0.2, 0, 0, 1);text-decoration:none;min-height:40px;justify-content:center}.uets-filled-button:hover{box-shadow:0 2px 4px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);transform:translateY(-1px)}.uets-filled-button:active{transform:translateY(0px);box-shadow:0 1px 2px rgba(0,0,0,0.12)}.uets-outlined-button{background:transparent;color:var(--md-primary);border:1px solid var(--md-outline);border-radius:20px;padding:10px 24px;font-family:'Roboto', sans-serif;font-weight:500;font-size:14px;cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:all 0.2s cubic-bezier(0.2, 0, 0, 1);text-decoration:none;min-height:40px;justify-content:center}.uets-outlined-button:hover{background:rgba(103, 80, 164, 0.08);border-color:var(--md-primary)}.uets-text-button{background:transparent;color:var(--md-primary);border:none;border-radius:20px;padding:10px 12px;font-family:'Roboto', sans-serif;font-weight:500;font-size:14px;cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:all 0.2s cubic-bezier(0.2, 0, 0, 1);text-decoration:none;min-height:40px;justify-content:center}.uets-text-button:hover{background:rgba(103, 80, 164, 0.08)}.uets-fab{background:var(--md-primary-container);color:var(--md-on-primary-container);border:none;border-radius:16px;width:56px;height:56px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 5px rgba(0,0,0,0.2), 0 6px 10px rgba(0,0,0,0.14), 0 1px 18px rgba(0,0,0,0.12);transition:all 0.2s cubic-bezier(0.2, 0, 0, 1);font-size:24px}.uets-fab:hover{box-shadow:0 5px 5px rgba(0,0,0,0.2), 0 9px 18px rgba(0,0,0,0.14), 0 3px 14px rgba(0,0,0,0.12);transform:scale(1.05)}.uets-fab.uets-mods-hidden-state{background:transparent;box-shadow:none}.uets-fab.uets-mods-hidden-state:hover{background:rgba(103, 80, 164, 0.08);box-shadow:none;transform:scale(1.05)}.uets-success-button{background:#a6e3a1;color:white}.uets-warning-button{background:#fab387;color:white}.uets-purple-button{background:#cba6f7;color:white}.uets-ai-button,.uets-copy-prompt-button,.uets-ddg-button,.uets-ddg-link,.uets-gemini-button,.uets-get-answer-button{display:inline-flex;align-items:center;gap:8px;padding:4px 8px;color:var(--md-on-primary);text-decoration:none;border-radius:20px;font-size:14px;font-weight:500;cursor:pointer;text-align:center;vertical-align:middle;transition:all 0.2s cubic-bezier(0.2, 0, 0, 1);border:none;font-family:'Roboto', sans-serif;min-height:40px;margin:1px;justify-content:center;box-shadow:0 2px 4px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06)}.uets-ai-button:hover,.uets-copy-prompt-button:hover,.uets-ddg-button:hover,.uets-ddg-link:hover,.uets-gemini-button:hover,.uets-get-answer-button:hover{box-shadow:0 4px 8px rgba(0,0,0,0.15), 0 2px 4px rgba(0,0,0,0.1);transform:translateY(-2px)}.uets-ddg-button,.uets-ddg-link{background:#a6e3a1 !important;color:white !important}.uets-ai-button,.uets-gemini-button{background:#74c7ec !important;color:white !important}.uets-copy-prompt-button{background:#fab387 !important;color:white !important}.uets-get-answer-button{background:#cba6f7 !important;color:white !important}.uets-ddg-button::before,.uets-ddg-link::before{content:'search';font-family:'Material Icons Outlined';font-size:18px}.uets-ai-button::before,.uets-gemini-button::before{content:'psychology';font-family:'Material Icons Outlined';font-size:18px}.uets-copy-prompt-button::before{content:'content_copy';font-family:'Material Icons Outlined';font-size:18px}.uets-get-answer-button::before{content:'lightbulb';font-family:'Material Icons Outlined';font-size:18px}.uets-option-wrapper{display:flex;flex-direction:column;align-items:stretch;justify-content:space-between;height:100%}.uets-option-wrapper > button.option{display:flex;flex-direction:column;flex-grow:1;min-height:0;width:100%}.uets-ddg-link-option-item{width:100%;box-sizing:border-box;margin-top:12px;padding:8px 0;border-radius:0 0 12px 12px;flex-shrink:0}.uets-main-question-buttons-container{display:flex;justify-content:center;gap:4px;background:#313244;border-radius:12px;margin:1px;flex-wrap:wrap;padding:2px}.uets-response-popup{position:fixed;top:20px;right:20px;background:var(--md-surface-container-high);color:var(--md-on-surface);border-radius:12px;padding:16px 20px;z-index:10004;max-width:400px;box-shadow:0 4px 12px rgba(0,0,0,0.15);font-family:'Roboto', -apple-system, BlinkMacSystemFont, sans-serif;font-size:14px;line-height:20px;animation:slideInRight 0.3s ease-out;cursor:pointer;display:flex;align-items:flex-start;gap:12px}@keyframes slideInRight{from{transform:translateX(400px);opacity:0}to{transform:translateX(0);opacity:1}}@keyframes slideOutRight{from{transform:translateX(0);opacity:1}to{transform:translateX(400px);opacity:0}}.uets-response-popup.uets-toast-dismiss{animation:slideOutRight 0.3s ease-in forwards}.uets-response-popup-header{display:none}.uets-response-popup-content{white-space:normal;font-size:14px;line-height:20px;color:var(--md-on-surface);padding:0;max-height:none;overflow:visible;flex:1}.uets-response-popup-close{background:none;border:none;width:24px;height:24px;border-radius:12px;cursor:pointer;color:var(--md-on-surface-variant);transition:all 0.2s cubic-bezier(0.2, 0, 0, 1);display:flex;align-items:center;justify-content:center;font-family:'Material Icons Outlined';font-size:20px;padding:0;flex-shrink:0}.uets-response-popup-close::before{content:'close'}.uets-response-popup-close:hover{background:rgba(103, 80, 164, 0.08);color:var(--md-primary)}.uets-response-popup-loading{text-align:center;font-style:normal;color:var(--md-on-surface-variant);padding:0;font-size:14px;display:flex;flex-direction:column;align-items:center;gap:8px}.uets-welcome-popup{position:fixed;top:50%;left:50%;transform:translate(-50%, -50%);background:var(--md-surface-container-high);color:var(--md-on-surface);border-radius:28px;padding:0;z-index:10004;min-width:320px;max-width:90vh;max-height:80vh;overflow:hidden;box-shadow:0 10px 25px rgba(0,0,0,0.35), 0 6px 10px rgba(0,0,0,0.25);font-family:'Roboto', -apple-system, BlinkMacSystemFont, sans-serif !important;font-size:18px}.uets-response-popup-header{display:flex;justify-content:space-between;align-items:center;padding:24px 24px 0;margin-bottom:16px}.uets-response-popup-title{font-weight:600;font-size:22px;color:var(--md-on-surface);line-height:28px}.uets-response-popup-close{background:none;border:none;width:48px;height:48px;border-radius:24px;cursor:pointer;color:var(--md-on-surface-variant);transition:all 0.2s cubic-bezier(0.2, 0, 0, 1);display:flex;align-items:center;justify-content:center;font-family:'Material Icons Outlined';font-size:24px}.uets-response-popup-close::before{content:'close'}.uets-response-popup-close:hover{background:rgba(103, 80, 164, 0.08);color:var(--md-primary)}.uets-response-popup-content{white-space:pre-wrap;font-size:14px;line-height:20px;color:var(--md-on-surface);padding:0 24px 24px;max-height:calc(80vh - 120px);overflow-y:auto}.uets-response-popup-content b,.uets-response-popup-content strong{color:var(--md-primary);font-weight:600}.uets-response-popup-loading{text-align:center;font-style:normal;color:var(--md-on-surface-variant);padding:40px 24px;font-size:16px;display:flex;flex-direction:column;align-items:center;gap:16px}.uets-loading-spinner{width:32px;height:32px;border:3px solid var(--md-outline-variant);border-top:3px solid var(--md-primary);border-radius:50%;animation:spin 1s linear infinite}@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}#uets-toggle-ui-button{position:fixed;bottom:20px;left:20px;z-index:10002;background:var(--md-primary-container);color:var(--md-on-primary-container);border:none;border-radius:16px;width:56px;height:56px;cursor:pointer;box-shadow:0 3px 5px rgba(0,0,0,0.2), 0 6px 10px rgba(0,0,0,0.14), 0 1px 18px rgba(0,0,0,0.12);transition:all 0.2s cubic-bezier(0.2, 0, 0, 1);user-select:none;display:flex;align-items:center;justify-content:center;font-family:'Material Icons Outlined';font-size:24px}#uets-toggle-ui-button:hover{box-shadow:0 5px 5px rgba(0,0,0,0.2), 0 9px 18px rgba(0,0,0,0.14), 0 3px 14px rgba(0,0,0,0.12);transform:scale(1.05)}#uets-toggle-ui-button.uets-mods-hidden-state{background:transparent;box-shadow:none}#uets-toggle-ui-button.uets-mods-hidden-state:hover{background:rgba(103, 80, 164, 0.08);box-shadow:none}.uets-correct-answer{background:rgba(76, 175, 80, 0.2) !important;border:3px solid #4CAF50 !important;border-radius:12px !important;box-shadow:0 0 12px rgba(76, 175, 80, 0.5), inset 0 0 8px rgba(76, 175, 80, 0.15) !important;animation:uets-correct-pulse 2s ease-in-out infinite !important}@keyframes uets-correct-pulse{0%,100%{box-shadow:0 0 12px rgba(76, 175, 80, 0.5), inset 0 0 8px rgba(76, 175, 80, 0.15)}50%{box-shadow:0 0 20px rgba(76, 175, 80, 0.7), inset 0 0 12px rgba(76, 175, 80, 0.25)}}.uets-answer-indicator{position:absolute;top:8px;right:8px;background:linear-gradient(135deg, #4CAF50, #45a049);color:white;padding:6px 10px;border-radius:16px;font-size:14px;font-weight:700;z-index:1000;font-family:'Material Icons Outlined';display:flex;align-items:center;justify-content:center;gap:4px;box-shadow:0 2px 8px rgba(76, 175, 80, 0.4)}.uets-answer-indicator::before{content:'star';font-size:18px}.uets-answer-indicator::after{content:'Correct';font-family:'Roboto', sans-serif;font-size:12px;font-weight:600}.uets-streak-bonus{margin-left:8px;color:#FFD700;font-weight:600;font-size:14px;text-shadow:1px 1px 2px rgba(0,0,0,0.3);font-family:'Roboto', sans-serif}.uets-config-gui{position:fixed;top:50%;left:50%;transform:translate(-50%, -50%);background:var(--md-surface);color:var(--md-on-surface);border-radius:28px;padding:0;z-index:10003;width:640px;max-width:90vw;max-height:90vh;overflow:hidden;box-shadow:0 24px 38px rgba(0,0,0,0.14), 0 9px 46px rgba(0,0,0,0.12), 0 11px 15px rgba(0,0,0,0.20);font-family:'Roboto', -apple-system, BlinkMacSystemFont, sans-serif}.uets-config-header{display:flex;justify-content:space-between;align-items:center;padding:24px 24px 12px;border-bottom:1px solid var(--md-outline-variant)}.uets-config-title{font-size:24px;font-weight:400;color:var(--md-on-surface);line-height:32px;letter-spacing:0}.uets-config-close{background:none;border:none;width:40px;height:40px;border-radius:20px;cursor:pointer;color:var(--md-on-surface-variant);transition:all 0.2s cubic-bezier(0.2, 0, 0, 1);display:flex;align-items:center;justify-content:center;font-family:'Material Icons Outlined';font-size:20px}.uets-config-close::before{content:'close'}.uets-config-close:hover{background:var(--md-surface-container-highest);color:var(--md-on-surface)}.uets-config-content{max-height:calc(90vh - 200px);overflow-y:auto}.uets-config-section{margin-bottom:8px;padding:16px 24px}.uets-config-section-title{font-size:16px;font-weight:500;margin-bottom:16px;color:var(--md-primary);line-height:24px;letter-spacing:0.1px}.uets-config-item{display:flex;align-items:center;justify-content:space-between;padding:12px 0;min-height:56px}.uets-config-label-container{display:flex;align-items:center;flex:1;margin-right:16px}.uets-config-label{font-size:16px;font-weight:400;color:var(--md-on-surface);margin-left:12px;line-height:24px;letter-spacing:0.5px}.uets-config-input,.uets-config-select{background:var(--md-surface-container-highest);border:1px solid var(--md-outline);border-radius:4px;padding:16px;color:var(--md-on-surface);font-size:16px;font-family:'Roboto', sans-serif;width:200px;transition:all 0.2s cubic-bezier(0.2, 0, 0, 1);box-sizing:border-box}.uets-config-input:focus,.uets-config-select:focus{outline:none;border-color:var(--md-primary);border-width:2px;padding:15px}.uets-config-input:disabled{background:var(--md-surface-variant);color:var(--md-on-surface-variant);border-color:var(--md-outline-variant)}.uets-switch{position:relative;display:inline-block;width:52px;height:32px;cursor:pointer}.uets-switch input{opacity:0;width:0;height:0}.uets-switch-slider{position:absolute;top:0;left:0;right:0;bottom:0;background:var(--md-outline);border-radius:16px;transition:all 0.2s cubic-bezier(0.2, 0, 0, 1);border:2px solid var(--md-outline)}.uets-switch-slider:before{position:absolute;content:"";height:20px;width:20px;left:4px;bottom:4px;background:var(--md-surface-container-highest);border-radius:50%;transition:all 0.2s cubic-bezier(0.2, 0, 0, 1);box-shadow:0 1px 3px rgba(0,0,0,0.4)}.uets-switch input:checked + .uets-switch-slider{background:var(--md-primary);border-color:var(--md-primary)}.uets-switch input:checked + .uets-switch-slider:before{transform:translateX(20px);background:var(--md-on-primary)}.uets-switch:hover .uets-switch-slider{box-shadow:0 0 0 8px rgba(103, 80, 164, 0.04)}.uets-switch input:checked:hover + .uets-switch-slider{box-shadow:0 0 0 8px rgba(103, 80, 164, 0.08)}.uets-config-info{background:var(--md-secondary-container);color:var(--md-on-secondary-container);border:none;border-radius:50%;width:22px;height:22px;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:'Material Icons Outlined';transition:all 0.2s cubic-bezier(0.2, 0, 0, 1);font-weight:500}.uets-config-info::before{content:'help';font-size:20px}.uets-config-info:hover{background:var(--md-secondary);color:var(--md-on-secondary);transform:scale(1.1)}.uets-config-buttons{display:flex;justify-content:flex-end;gap:8px;padding:16px 24px 24px;border-top:1px solid var(--md-outline-variant);background:var(--md-surface-container-low)}.uets-config-button{padding:10px 24px;border:none;border-radius:20px;cursor:pointer;font-size:14px;font-weight:500;font-family:'Roboto', sans-serif;transition:all 0.2s cubic-bezier(0.2, 0, 0, 1);display:inline-flex;align-items:center;gap:8px;min-height:40px;justify-content:center;letter-spacing:0.1px}.uets-config-save{background:var(--md-primary);color:var(--md-on-primary)}.uets-config-save::before{content:'save';font-family:'Material Icons Outlined';font-size:18px}.uets-config-save:hover{box-shadow:0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);background:#5a4089}.uets-config-reset{background:var(--md-error);color:var(--md-on-error)}.uets-config-reset::before{content:'refresh';font-family:'Material Icons Outlined';font-size:18px}.uets-config-reset:hover{box-shadow:0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);background:#a02117}.uets-config-cancel{background:transparent;color:var(--md-primary);border:1px solid var(--md-outline)}.uets-config-cancel::before{content:'cancel';font-family:'Material Icons Outlined';font-size:18px}.uets-config-cancel:hover{background:var(--md-surface-container-highest);border-color:var(--md-primary)}.uets-config-content::-webkit-scrollbar{width:8px}.uets-config-content::-webkit-scrollbar-track{background:var(--md-surface-container-low)}.uets-config-content::-webkit-scrollbar-thumb{background:var(--md-outline-variant);border-radius:4px}.uets-config-content::-webkit-scrollbar-thumb:hover{background:var(--md-outline)}.uets-profile-selector{margin:4px;padding:16px;background:var(--md-surface-container-low);border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.12)}.uets-profile-list{display:flex;gap:8px;overflow-x:auto;scrollbar-width:thin;scrollbar-color:var(--md-outline-variant) transparent}.uets-profile-list::-webkit-scrollbar{height:6px}.uets-profile-list::-webkit-scrollbar-track{background:transparent}.uets-profile-list::-webkit-scrollbar-thumb{background:var(--md-outline-variant);border-radius:3px}.uets-profile-list::-webkit-scrollbar-thumb:hover{background:var(--md-outline)}.uets-profile-button{background:var(--md-surface-container-highest);color:var(--md-on-surface);border:1px solid var(--md-outline);border-radius:20px;padding:8px 16px;font-family:'Roboto', sans-serif;font-weight:500;font-size:14px;cursor:pointer;white-space:nowrap;transition:all 0.2s cubic-bezier(0.2, 0, 0, 1);flex-shrink:0}.uets-profile-button:hover{background:var(--md-surface-container);border-color:var(--md-primary)}.uets-profile-button.active{background:var(--md-primary);color:var(--md-on-primary);border-color:var(--md-primary)}.uets-profile-button.active:hover{background:#5a4089}@media (prefers-color-scheme: dark){:root{--md-primary:#D0BCFF;--md-primary-container:#4F378B;--md-on-primary:#371E73;--md-on-primary-container:#EADDFF;--md-secondary:#CCC2DC;--md-secondary-container:#4A4458;--md-on-secondary:#332D41;--md-on-secondary-container:#E8DEF8;--md-tertiary:#EFB8C8;--md-tertiary-container:#633B48;--md-on-tertiary:#492532;--md-on-tertiary-container:#FFD8E4;--md-surface:#141218;--md-surface-dim:#141218;--md-surface-bright:#3B383E;--md-surface-container-lowest:#0F0D13;--md-surface-container-low:#1D1B20;--md-surface-container:#211F26;--md-surface-container-high:#2B2930;--md-surface-container-highest:#36343B;--md-on-surface:#E6E0E9;--md-on-surface-variant:#CAC4D0;--md-outline:#938F99;--md-outline-variant:#49454F;--md-error:#F2B8B5;--md-error-container:#8C1D18;--md-on-error:#601410;--md-on-error-container:#F9DEDC;--md-shadow:#000000}}.kahoot-answer-indicator{position:absolute;top:12px;right:18px;min-width:24px;height:24px;background:linear-gradient(135deg, rgba(0,0,0,0.85) 60%, rgba(0,0,0,0.7) 100%);color:#fff;padding:0 8px;border-radius:12px;font-size:15px;font-weight:bold;box-shadow:0 2px 8px rgba(0,0,0,0.18);display:flex;align-items:center;justify-content:center;border:2px solid #fff2;z-index:1000;pointer-events:none;user-select:none;transition:transform 0.15s}.kahoot-answer-button{position:relative}.uets-testportal-invisible{opacity:0 !important;pointer-events:auto !important}
-  `)
+    @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
+
+    /* Popup Styles (Matched to Frontend.js) */
+    .ugh-response-popup {
+        position: fixed; top: 20px; right: 20px; background: #ffffff; color: #202124;
+        border-radius: 16px; padding: 0; z-index: 999999; width: 400px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.15); font-family: 'Roboto', sans-serif;
+        display: flex; flex-direction: column; animation: slideInRight 0.3s ease-out;
+        overflow: hidden; border: 1px solid #dadce0;
+    }
+    .ugh-popup-header {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 12px 16px; background: #f8f9fa; border-bottom: 1px solid #dadce0;
+    }
+    .ugh-popup-title { font-weight: 500; font-size: 14px; color: #5f6368; }
+    .ugh-popup-close { background: none; border: none; cursor: pointer; color: #5f6368; display:flex; align-items:center;}
+    .ugh-popup-close:hover { color: #202124; }
+    .ugh-popup-body { padding: 20px; max-height: 80vh; overflow-y: auto; font-size: 14px; line-height: 1.6; color: #3c4043; }
+
+    .ugh-answer-box {
+        background: #e8f0fe; color: #1967d2; padding: 16px; border-radius: 12px;
+        margin-bottom: 20px; font-size: 18px; font-weight: 500; line-height: 1.4;
+        border-left: 5px solid #1967d2;
+    }
+    .ugh-explanation-text strong { font-weight: 700; color: #202124; }
+    .ugh-explanation-text em { font-style: italic; color: #5f6368; }
+    .ugh-explanation-text code { background: #f1f3f4; padding: 2px 4px; border-radius: 4px; font-family: monospace; color: #d93025; }
+    .ugh-explanation-text ul { padding-left: 20px; margin: 8px 0; }
+    .ugh-explanation-text li { margin-bottom: 4px; }
+    .ugh-explanation-text h3 { font-size: 15px; font-weight: 700; margin: 16px 0 8px 0; color: #202124; }
+    .ugh-loading-spinner { width: 32px; height: 32px; border: 3px solid #e0e0e0; border-top: 3px solid #1a73e8; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto; }
+    @keyframes slideInRight { from { transform: translateX(400px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+    /* Toggle Button */
+    #uets-toggle-ui-button {
+        position: fixed; bottom: 20px; left: 20px; z-index: 10002;
+        width: 56px; height: 56px;
+        background: #1a73e8; color: white; border-radius: 16px; border: none;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3); cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        transition: transform 0.2s, background 0.2s;
+    }
+    #uets-toggle-ui-button:hover { transform: scale(1.05); background: #1557b0; }
+    #uets-toggle-ui-button.uets-mods-hidden-state {
+        background: #f1f3f4; color: #5f6368; box-shadow: none; border: 1px solid #dadce0;
+    }
+    #uets-toggle-ui-button svg { fill: currentColor; }
+
+    /* Question Button */
+    .uets-gemini-button {
+        background: #1a73e8; color: white; border: none; padding: 8px 16px;
+        border-radius: 20px; font-family: 'Roboto', sans-serif; font-weight: 500;
+        font-size: 14px; cursor: pointer; display: inline-flex; align-items: center;
+        gap: 8px; transition: background 0.2s, box-shadow 0.2s;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+    }
+    .uets-gemini-button:hover { background: #1557b0; box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
+    .uets-gemini-button svg { fill: currentColor; }
+    .uets-main-question-buttons-container { display: flex; justify-content: center; margin-top: 8px; }
+
+    /* Config Modal */
+    .uets-config-overlay {
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.4); z-index: 10003;
+        display: flex; align-items: center; justify-content: center;
+        animation: fadeIn 0.2s;
+    }
+    .uets-config-modal {
+        background: white; border-radius: 16px; width: 500px; max-width: 90vw;
+        max-height: 85vh; display: flex; flex-direction: column;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.2); font-family: 'Roboto', sans-serif;
+        overflow: hidden;
+    }
+    .uets-config-header {
+        padding: 16px 24px; border-bottom: 1px solid #dadce0;
+        display: flex; justify-content: space-between; align-items: center;
+        background: #f8f9fa;
+    }
+    .uets-config-title { font-size: 18px; font-weight: 500; color: #202124; }
+    .uets-config-content { padding: 20px 24px; overflow-y: auto; }
+    .uets-config-section { margin-bottom: 24px; }
+    .uets-config-section-title {
+        font-size: 12px; font-weight: 700; color: #5f6368; text-transform: uppercase;
+        margin-bottom: 12px; letter-spacing: 0.5px;
+    }
+    .uets-config-item {
+        display: flex; align-items: center; justify-content: space-between;
+        margin-bottom: 16px;
+    }
+    .uets-config-label { font-size: 14px; color: #3c4043; }
+    .uets-config-input {
+        padding: 8px; border: 1px solid #dadce0; border-radius: 6px;
+        font-size: 14px; width: 120px; font-family: 'Roboto', sans-serif;
+    }
+    .uets-config-footer {
+        padding: 16px 24px; border-top: 1px solid #dadce0; background: #f8f9fa;
+        display: flex; justify-content: flex-end; gap: 12px;
+    }
+    .uets-btn {
+        padding: 8px 16px; border-radius: 6px; font-size: 14px; font-weight: 500;
+        cursor: pointer; border: none; font-family: 'Roboto', sans-serif;
+    }
+    .uets-btn-primary { background: #1a73e8; color: white; }
+    .uets-btn-primary:hover { background: #1557b0; }
+    .uets-btn-secondary { background: white; color: #1a73e8; border: 1px solid #dadce0; }
+    .uets-btn-secondary:hover { background: #f1f3f4; }
+    
+    /* Correct Answer Highlight */
+    .uets-correct-answer {
+        border: 2px solid #34a853 !important;
+        background: rgba(52, 168, 83, 0.1) !important;
+    }
+    .uets-answer-indicator {
+        position: absolute; top: 8px; right: 8px;
+        background: #34a853; color: white; padding: 4px 8px;
+        border-radius: 12px; font-size: 12px; font-weight: 700;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    .uets-streak-bonus {
+        margin-left: 8px; color: #fbbc04; font-weight: 700; font-size: 14px;
+    }
+    .uets-testportal-invisible { opacity: 0 !important; pointer-events: auto !important; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  `);
 
   // === WELCOME POPUP FOR NEW USERS ===
   const showWelcomePopup = () => {
     if (!sharedState.uiModificationsEnabled) return;
 
     const popup = document.createElement("div");
-    popup.classList.add("uets-welcome-popup");
+    popup.classList.add("ugh-response-popup");
     popup.id = "uets-welcome-popup";
+    popup.style.top = "50%";
+    popup.style.left = "50%";
+    popup.style.transform = "translate(-50%, -50%)";
+    popup.style.animation = "fadeIn 0.3s";
 
     const header = document.createElement("div");
-    header.classList.add("uets-response-popup-header");
+    header.classList.add("ugh-popup-header");
 
     const title = document.createElement("span");
-    title.classList.add("uets-response-popup-title");
+    title.classList.add("ugh-popup-title");
     title.textContent = "Welcome to UETS!";
 
     const closeButton = document.createElement("button");
-    closeButton.classList.add("uets-response-popup-close");
+    closeButton.classList.add("ugh-popup-close");
+    closeButton.innerHTML = ICONS.close;
     closeButton.onclick = () => popup.remove();
 
     header.appendChild(title);
@@ -135,7 +270,7 @@
     popup.appendChild(header);
 
     const content = document.createElement("div");
-    content.classList.add("uets-response-popup-content");
+    content.classList.add("ugh-popup-body");
     content.innerHTML = `<p>- Press the floating button (bottom-left) to activate/deactivate visual changes on the page.\n- Press and release the button 3 times within 2 seconds to open the settings menu.\n- In the settings, click on the info button on the left side of each option to get some insight into the setting.</p>`;
     popup.appendChild(content);
 
@@ -173,13 +308,11 @@
     sharedState.elementsToCleanup.push(buttonsContainer);
 
     const answerButton = createButton(
-      "Answer?",
+      "Ask AI",
       "uets-gemini-button uets-gemini-button-main-question",
       null // Handled by custom listeners below
     );
-    answerButton.type = "button";
-    answerButton.style.width = "100%";
-    answerButton.style.fontWeight = "bold";
+    answerButton.innerHTML = `${ICONS.psychology} Ask AI`;
 
     const handleAction = async (endpoint) => {
         let imageData = null;
@@ -488,159 +621,77 @@
     }
     if (sharedState.configGui) return;
 
-    const gui = document.createElement('div');
-    gui.className = 'uets-config-gui';
+    const overlay = document.createElement('div');
+    overlay.className = 'uets-config-overlay';
+    
+    const modal = document.createElement('div');
+    modal.className = 'uets-config-modal';
 
-    gui.innerHTML = `
-  <div class="uets-config-header">
-    <span class="uets-config-title">UETS Configuration</span>
-    <button class="uets-config-close"></button>
-  </div>
+    modal.innerHTML = `
+        <div class="uets-config-header">
+            <span class="uets-config-title">UETS Settings</span>
+            <button class="ugh-popup-close">${ICONS.close}</button>
+        </div>
+        <div class="uets-config-content">
+            <div class="uets-config-section">
+                <div class="uets-config-section-title">General</div>
+                <div class="uets-config-item">
+                    <span class="uets-config-label">Spoof Fullscreen</span>
+                    <input type="checkbox" id="enableSpoofFullscreen">
+                </div>
+                <div class="uets-config-item">
+                    <span class="uets-config-label">Site Optimizations</span>
+                    <input type="checkbox" id="enableSiteOptimizations">
+                </div>
+                <div class="uets-config-item">
+                    <span class="uets-config-label">Server URL</span>
+                    <input type="text" class="uets-config-input" id="serverUrl">
+                </div>
+            </div>
+            
+            <div class="uets-config-section">
+                <div class="uets-config-section-title">Wayground / Quizizz</div>
+                <div class="uets-config-item">
+                    <span class="uets-config-label">Hijack Time Taken</span>
+                    <input type="checkbox" id="enableTimeTakenEdit">
+                </div>
+                <div class="uets-config-item">
+                    <span class="uets-config-label">Time Min (ms)</span>
+                    <input type="number" class="uets-config-input" id="timeTakenMin">
+                </div>
+                <div class="uets-config-item">
+                    <span class="uets-config-label">Time Max (ms)</span>
+                    <input type="number" class="uets-config-input" id="timeTakenMax">
+                </div>
+                <div class="uets-config-item">
+                    <span class="uets-config-label">Hijack Timer Points</span>
+                    <input type="checkbox" id="enableTimerHijack">
+                </div>
+                <div class="uets-config-item">
+                    <span class="uets-config-label">Timer Bonus</span>
+                    <input type="number" class="uets-config-input" id="timerBonusPoints">
+                </div>
+            </div>
 
-  <div class="uets-config-content">
-    <div class="uets-profile-selector">
-      <div class="uets-profile-list">
-        <button class="uets-profile-button" data-profile="Custom">Custom</button>
-        <button class="uets-profile-button" data-profile="Stealthy">Stealthy</button>
-        <button class="uets-profile-button" data-profile="Creator's choice">Creator's choice</button>
-        <button class="uets-profile-button" data-profile="LMAO">LMAO</button>
-      </div>
-    </div>
+            <div class="uets-config-section">
+                <div class="uets-config-section-title">AI & Backend</div>
+                <div class="uets-config-item">
+                    <span class="uets-config-label">Include Images</span>
+                    <input type="checkbox" id="includeImages">
+                </div>
+                <div class="uets-config-item">
+                    <span class="uets-config-label">Gemini API Key</span>
+                    <button class="uets-btn uets-btn-secondary" id="setBackendKey">Set Key</button>
+                </div>
+            </div>
+        </div>
+        <div class="uets-config-footer">
+            <button class="uets-btn uets-btn-secondary" id="uets-reset">Reset</button>
+            <button class="uets-btn uets-btn-primary" id="uets-save">Save</button>
+        </div>
+    `;
 
-    <div class="uets-card" style="margin-left: 4px; margin-right: 4px;">
-      <div class="uets-config-section">
-        <div class="uets-config-section-title">General Settings</div>
-        <div class="uets-config-item">
-          <div class="uets-config-label-container">
-            <button class="uets-config-info" data-info="Makes the website think that it's in fullscreen mode AND focused. Recommended on Testportal and Wayground (if the teacher enabled extra protections)." title="Info"></button>
-            <label class="uets-config-label">Fullscreen spoofing</label>
-          </div>
-          <label class="uets-switch">
-            <input type="checkbox" id="enableSpoofFullscreen">
-            <span class="uets-switch-slider"></span>
-          </label>
-        </div>
-        <div class="uets-config-item">
-          <div class="uets-config-label-container">
-            <button class="uets-config-info" data-info="Blocks sounds, some images, and backgrounds from loading, making the user experience smoother." title="Info"></button>
-            <label class="uets-config-label">Site optimizations</label>
-          </div>
-          <label class="uets-switch">
-            <input type="checkbox" id="enableSiteOptimizations">
-            <span class="uets-switch-slider"></span>
-          </label>
-        </div>
-        <div class="uets-config-item">
-          <div class="uets-config-label-container">
-            <button class="uets-config-info" data-info="URL of the server for storing and retrieving answers." title="Info"></button>
-            <label class="uets-config-label">Server URL</label>
-          </div>
-          <input type="text" class="uets-config-input" id="serverUrl" style="width: 200px;">
-        </div>
-      </div>
-    </div>
-
-    <div class="uets-card" style="margin-top: 6px; margin-left: 4px; margin-right: 4px;">
-      <div class="uets-config-section">
-        <div class="uets-config-section-title">Wayground Settings</div>
-        <div class="uets-config-item">
-          <div class="uets-config-label-container">
-            <button class="uets-config-info" data-info="Allows you to spoof the time taken to answer a question. You have 20 seconds to get a ~100-400 point bonus per question, this option forces the site to give you bonus points." title="Info"></button>
-            <label class="uets-config-label">Hijack timeTaken</label>
-          </div>
-          <label class="uets-switch">
-            <input type="checkbox" id="enableTimeTakenEdit">
-            <span class="uets-switch-slider"></span>
-          </label>
-        </div>
-        <div class="uets-config-item">
-          <div class="uets-config-label-container">
-            <button class="uets-config-info" data-info="Minimum time in milliseconds for randomized time taken. I recommend keeping it between 6000 and 9000. Very low values will alert the teacher." title="Info"></button>
-            <label class="uets-config-label">timeTaken min (ms)</label>
-          </div>
-          <input type="number" class="uets-config-input" id="timeTakenMin" min="100" max="60000">
-        </div>
-        <div class="uets-config-item">
-          <div class="uets-config-label-container">
-            <button class="uets-config-info" data-info="Maximum time in milliseconds for randomized time taken. I recommend keeping it between 7000 and 12000. Very low values will alert the teacher." title="Info"></button>
-            <label class="uets-config-label">timeTaken max (ms)</label>
-          </div>
-          <input type="number" class="uets-config-input" id="timeTakenMax" min="100" max="60000">
-        </div>
-        <div class="uets-config-item">
-          <div class="uets-config-label-container">
-            <button class="uets-config-info" data-info="Enables timer hijacking, this adds bonus points to your score, I recommend keeping it between 200 and 350 points to seem legitimate." title="Info"></button>
-            <label class="uets-config-label">Hijack timer for points</label>
-          </div>
-          <label class="uets-switch">
-            <input type="checkbox" id="enableTimerHijack">
-            <span class="uets-switch-slider"></span>
-          </label>
-        </div>
-        <div class="uets-config-item">
-          <div class="uets-config-label-container">
-            <button class="uets-config-info" data-info="Timer bonus that you'll recieve if you enable timer hijacking. Values above 6000 are problematic and will cause issues. Maximum value that's guaranteed to work is 5000, but I don't recommend setting it to anything above 350." title="Info"></button>
-            <label class="uets-config-label">Timer bonus points</label>
-          </div>
-          <input type="number" class="uets-config-input" id="timerBonusPoints" min="0" max="5000">
-        </div>
-        <div class="uets-config-item">
-          <div class="uets-config-label-container">
-            <button class="uets-config-info" data-info="DANGER: Enabling this and clicking any reaction will trigger a wave of reactions being shown on the teacher's screen, alongside potentially freezing your browser. If you want to use it, try your best not to get caught." title="Info"></button>
-            <label class="uets-config-label">Enable reaction spam</label>
-          </div>
-          <label class="uets-switch">
-            <input type="checkbox" id="enableReactionSpam">
-            <span class="uets-switch-slider"></span>
-          </label>
-        </div>
-        <div class="uets-config-item">
-          <div class="uets-config-label-container">
-            <button class="uets-config-info" data-info="How many reactions should be set per one reaction." title="Info"></button>
-            <label class="uets-config-label">Reaction spam count</label>
-          </div>
-          <input type="number" class="uets-config-input" id="reactionSpamCount" min="0" max="10">
-        </div>
-        <div class="uets-config-item">
-          <div class="uets-config-label-container">
-            <button class="uets-config-info" data-info="Delay in milliseconds between each resend." title="Info"></button>
-            <label class="uets-config-label">Reaction spam delay (ms)</label>
-          </div>
-          <input type="number" class="uets-config-input" id="reactionSpamDelay" min="50" max="1000">
-        </div>
-      </div>
-    </div>
-
-    <div class="uets-card" style="margin-top: 6px; margin-left: 4px; margin-right: 4px;">
-      <div class="uets-config-section">
-        <div class="uets-config-section-title">AI Settings</div>
-        <div class="uets-config-item">
-          <div class="uets-config-label-container">
-            <button class="uets-config-info" data-info="Whether to include question images in AI prompts." title="Info"></button>
-            <label class="uets-config-label">Include images</label>
-          </div>
-          <label class="uets-switch">
-            <input type="checkbox" id="includeImages">
-            <span class="uets-switch-slider"></span>
-          </label>
-        </div>
-        <div class="uets-config-item">
-          <div class="uets-config-label-container">
-            <button class="uets-config-info" data-info="Set the API Key for the backend service." title="Info"></button>
-            <label class="uets-config-label">Backend API Key</label>
-          </div>
-          <button class="uets-config-button uets-purple-button" id="setBackendKey">Set Key</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="uets-config-buttons">
-    <button class="uets-config-button uets-config-save">Save</button>
-    <button class="uets-config-button uets-config-reset">Reset to Defaults</button>
-    <button class="uets-config-button uets-config-cancel">Cancel</button>
-  </div>
-`;
+    overlay.appendChild(modal);
 
     // Populate current values
     const populateValues = () => {
@@ -653,22 +704,13 @@
       document.getElementById('enableSiteOptimizations').checked = sharedState.config.enableSiteOptimizations;
       document.getElementById('serverUrl').value = sharedState.config.serverUrl;
       document.getElementById('includeImages').checked = sharedState.config.includeImages;
-      document.getElementById('enableReactionSpam').checked = sharedState.config.enableReactionSpam;
-      document.getElementById('reactionSpamCount').value = sharedState.config.reactionSpamCount;
-      document.getElementById('reactionSpamDelay').value = sharedState.config.reactionSpamDelay;
-      // Set active profile button
-      const profileButtons = gui.querySelectorAll('.uets-profile-button');
-      profileButtons.forEach(btn => btn.classList.remove('active'));
-      const customBtn = gui.querySelector('.uets-profile-button[data-profile="Custom"]');
-      if (customBtn) customBtn.classList.add('active');
     };
 
     // Event handlers
-    gui.querySelector('.uets-config-close').onclick = () => closeConfigGui();
-    gui.querySelector('.uets-config-cancel').onclick = () => closeConfigGui();
+    modal.querySelector('.ugh-popup-close').onclick = () => closeConfigGui();
 
     // Set Backend Key handler
-    gui.querySelector('#setBackendKey').onclick = () => {
+    modal.querySelector('#setBackendKey').onclick = () => {
         const newKey = prompt("Enter your Gemini API Key for the Backend:");
         if (newKey !== null) {
             window.dispatchEvent(new CustomEvent('UGH_Save_Key', { detail: { key: newKey } }));
@@ -676,7 +718,7 @@
         }
     };
 
-    gui.querySelector('.uets-config-save').onclick = () => {
+    modal.querySelector('#uets-save').onclick = () => {
       // Collect values
       sharedState.config.enableTimeTakenEdit = document.getElementById('enableTimeTakenEdit').checked;
       sharedState.config.timeTakenMin = parseInt(document.getElementById('timeTakenMin').value);
@@ -688,56 +730,20 @@
       sharedState.config.serverUrl = document.getElementById('serverUrl').value;
       sharedState.config.includeImages = document.getElementById('includeImages').checked;
 
-      sharedState.config.enableReactionSpam = document.getElementById('enableReactionSpam').checked;
-      sharedState.config.reactionSpamCount = parseInt(document.getElementById('reactionSpamCount').value);
-      sharedState.config.reactionSpamDelay = parseInt(document.getElementById('reactionSpamDelay').value);
-
       saveConfig();
       closeConfigGui();
-      alert('Configuration saved!');
     };
 
-    gui.querySelector('.uets-config-reset').onclick = () => {
+    modal.querySelector('#uets-reset').onclick = () => {
       if (confirm('Reset all settings to defaults?')) {
         resetConfig();
         populateValues();
       }
     };
 
-    // Add event listeners for profile buttons
-    const profileButtons = gui.querySelectorAll('.uets-profile-button');
-    profileButtons.forEach(btn => {
-      btn.addEventListener('click', () => {
-        // Remove active class from all
-        profileButtons.forEach(b => b.classList.remove('active'));
-        // Add to clicked
-        btn.classList.add('active');
-        const selectedProfile = btn.getAttribute('data-profile');
-        if (selectedProfile !== 'Custom' && PROFILES[selectedProfile]) {
-          const profile = PROFILES[selectedProfile];
-          document.getElementById('enableTimeTakenEdit').checked = profile.enableTimeTakenEdit;
-          document.getElementById('timeTakenMin').value = profile.timeTakenMin;
-          document.getElementById('timeTakenMax').value = profile.timeTakenMax;
-          document.getElementById('enableTimerHijack').checked = profile.enableTimerHijack;
-          document.getElementById('timerBonusPoints').value = profile.timerBonusPoints;
-          document.getElementById('enableSpoofFullscreen').checked = profile.enableSpoofFullscreen;
-          document.getElementById('enableSiteOptimizations').checked = profile.enableSiteOptimizations;
-        }
-      });
-    });
-
-    document.body.appendChild(gui);
-    sharedState.configGui = gui;
+    document.body.appendChild(overlay);
+    sharedState.configGui = overlay;
     populateValues();
-
-    // Add event listeners for info buttons
-    const infoButtons = gui.querySelectorAll('.uets-config-info');
-    infoButtons.forEach(btn => {
-      btn.onclick = () => {
-        const info = btn.getAttribute('data-info');
-        showResponsePopup(info, false, "Option Info");
-      };
-    });
   };
 
   const closeConfigGui = () => {
@@ -811,8 +817,34 @@
     window.dispatchEvent(new CustomEvent('UGH_Request_Analysis', { detail: { text, images, endpoint } }));
   };
 
+  const formatRichText = (text) => {
+    if (!text) return "";
+    let html = text
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+        .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/(\*|_)(.*?)\1/g, '<em>$2</em>')
+        .replace(/`(.*?)`/g, '<code>$1</code>')
+        .replace(/^\s*[-*]\s+(.*)$/gm, '<li>$1</li>')
+        .replace(/\n/g, '<br>');
+    html = html.replace(/(<li>.*<\/li>)/g, '<ul>$1</ul>').replace(/<\/ul><br><ul>/g, '');
+    return html;
+  };
+  
+  const parseAndDisplay = (rawText) => {
+    const answerRegex = /Correct Answer:\s*(.+?)(?=\n\n|\nExplanation:|$)/is;
+    const explanationRegex = /Explanation:\s*(.+)/is;
+    const answerMatch = rawText.match(answerRegex);
+    const explanationMatch = rawText.match(explanationRegex);
+    const answer = answerMatch ? formatRichText(answerMatch[1].trim()) : "Analysis Complete";
+    const explanation = explanationMatch ? formatRichText(explanationMatch[1].trim()) : formatRichText(rawText.replace(answerRegex, '').trim());
+
+    const html = `<div class="ugh-answer-box">${answer}</div><div class="ugh-explanation-text">${explanation}</div>`;
+    showResponsePopup(html, false, "Gemini Assistant");
+  };
+
   const showResponsePopup = (
-    content,
+    contentHTML,
     isLoading = false,
     title = "AI Assistant",
   ) => {
@@ -824,112 +856,52 @@
       return;
     }
 
-    let popup = document.getElementById("uets-gemini-popup");
+    let popup = document.getElementById("ugh-gemini-popup");
 
-    // Clear any existing dismiss timeout when updating toast
+    // Clear any existing dismiss timeout
     if (sharedState.toastDismissTimeout) {
       clearTimeout(sharedState.toastDismissTimeout);
       sharedState.toastDismissTimeout = null;
     }
 
-    const removePopup = () => {
-      if (sharedState.toastDismissTimeout) {
-        clearTimeout(sharedState.toastDismissTimeout);
-        sharedState.toastDismissTimeout = null;
-      }
-      if (popup) {
-        popup.classList.add("uets-toast-dismiss");
-        setTimeout(() => {
-          if (popup && popup.parentNode) {
-            popup.remove();
-          }
-          sharedState.geminiPopup = null;
-        }, 300);
-      }
+    if (popup) popup.remove();
+    
+
+    popup = document.createElement("div");
+    popup.id = "ugh-gemini-popup";
+    popup.className = "ugh-response-popup";
+
+    popup.innerHTML = `
+        <div class="ugh-popup-header">
+            <span class="ugh-popup-title">${title}</span>
+            <button class="ugh-popup-close">${ICONS.close}</button>
+        </div>
+        <div class="ugh-popup-body">
+            ${isLoading ? `<div class="ugh-loading-spinner"></div><div style="text-align:center;margin-top:10px;color:#5f6368">${contentHTML}</div>` : contentHTML}
+        </div>
+    `;
+
+    popup.querySelector('.ugh-popup-close').onclick = () => {
+        popup.remove();
+        sharedState.geminiPopup = null;
     };
 
-    if (!popup) {
-      popup = document.createElement("div");
-      popup.id = "uets-gemini-popup";
-      popup.classList.add("uets-response-popup");
-
-      const contentDiv = document.createElement("div");
-      contentDiv.classList.add("uets-response-popup-content");
-      popup.appendChild(contentDiv);
-
-      const closeButton = document.createElement("button");
-      closeButton.classList.add("uets-response-popup-close");
-      closeButton.onclick = (e) => {
-        e.stopPropagation();
-        removePopup();
-      };
-      popup.appendChild(closeButton);
-
-      // Click anywhere on toast to dismiss
-      popup.onclick = removePopup;
-
-      document.body.appendChild(popup);
-      sharedState.geminiPopup = popup;
-    }
-
-    // Reset the dismiss animation class if popup was being dismissed
-    popup.classList.remove("uets-toast-dismiss");
-
-    const contentDiv = popup.querySelector(".uets-response-popup-content");
-    if (isLoading) {
-      contentDiv.innerHTML = `
-      <div class="uets-response-popup-loading">
-        <div class="uets-loading-spinner"></div>
-        ${content}
-      </div>
-    `;
-    } else {
-      let formattedContent = content.replace(
-        /^(Correct Answer\(s\):)/gim,
-        "<strong>$1</strong>",
-      );
-      formattedContent = formattedContent.replace(
-        /^(Reasoning:)/gim,
-        "<br><br><strong>$1</strong>",
-      );
-      contentDiv.innerHTML = formattedContent;
-    }
-
-    popup.style.display = "flex";
-
-    // Auto-dismiss after 7.5 seconds (only if not loading)
-    if (!isLoading) {
-      sharedState.toastDismissTimeout = setTimeout(() => {
-        removePopup();
-      }, 7500);
-    }
+    document.body.appendChild(popup);
+    sharedState.geminiPopup = popup;
   };
 
   // === SHARED UI TOGGLE ===
   const updateToggleButtonAppearance = () => {
     if (!sharedState.toggleButton) return;
     if (sharedState.uiModificationsEnabled) {
-      sharedState.toggleButton.innerHTML = "";
-      sharedState.toggleButton.style.fontFamily = "'Material Icons Outlined'";
-      sharedState.toggleButton.style.fontSize = "24px";
-      sharedState.toggleButton.style.setProperty("--icon", "'close'");
-      sharedState.toggleButton.setAttribute("data-icon", "close");
+      sharedState.toggleButton.innerHTML = ICONS.close;
       sharedState.toggleButton.title = "Hide Tool Modifications";
       sharedState.toggleButton.classList.remove("uets-mods-hidden-state");
     } else {
-      sharedState.toggleButton.innerHTML = "";
-      sharedState.toggleButton.style.fontFamily = "'Material Icons Outlined'";
-      sharedState.toggleButton.style.fontSize = "24px";
-      sharedState.toggleButton.style.setProperty("--icon", "'add'");
-      sharedState.toggleButton.setAttribute("data-icon", "add");
+      sharedState.toggleButton.innerHTML = ICONS.add;
       sharedState.toggleButton.title = "Show Tool Modifications";
       sharedState.toggleButton.classList.add("uets-mods-hidden-state");
     }
-
-    // Set the icon content
-    sharedState.toggleButton.style.setProperty("content", sharedState.uiModificationsEnabled ? "'close'" : "'add'");
-    const icon = sharedState.uiModificationsEnabled ? "close" : "add";
-    sharedState.toggleButton.textContent = icon;
   };
 
   const handleToggleUiClick = () => {
@@ -944,7 +916,7 @@
       if (isTestPortal) {
         // On TestPortal: just hide elements with opacity
         document.querySelectorAll(
-          ".uets-ddg-link, .uets-gemini-button, .uets-copy-prompt-button, .uets-get-answer-button, .uets-main-question-buttons-container, .uets-streak-bonus"
+          ".uets-gemini-button, .uets-main-question-buttons-container, .uets-streak-bonus"
         ).forEach((el) => el.classList.add("uets-testportal-invisible"));
 
         if (sharedState.geminiPopup) {
@@ -953,7 +925,7 @@
       } else {
         // On other sites: remove elements as before
         document.querySelectorAll(
-          ".uets-ddg-link, .uets-gemini-button, .uets-copy-prompt-button, .uets-get-answer-button, .uets-main-question-buttons-container, .uets-streak-bonus"
+          ".uets-gemini-button, .uets-main-question-buttons-container, .uets-streak-bonus"
         ).forEach((el) => el.remove());
 
         if (sharedState.geminiPopup) {
@@ -1030,7 +1002,7 @@
       if (isTestPortal) {
         // On TestPortal: show elements by removing opacity class
         document.querySelectorAll(
-          ".uets-ddg-link, .uets-gemini-button, .uets-copy-prompt-button, .uets-get-answer-button, .uets-main-question-buttons-container, .uets-streak-bonus"
+          ".uets-gemini-button, .uets-main-question-buttons-container, .uets-streak-bonus"
         ).forEach((el) => el.classList.remove("uets-testportal-invisible"));
 
         if (sharedState.geminiPopup) {
@@ -1052,7 +1024,7 @@
     if (isTestPortal) {
       // Remove all UETS elements before navigating away from TestPortal
       document.querySelectorAll(
-        ".uets-ddg-link, .uets-gemini-button, .uets-copy-prompt-button, .uets-get-answer-button, .uets-main-question-buttons-container, .uets-streak-bonus, .uets-response-popup, .uets-welcome-popup, .uets-config-gui"
+        ".uets-gemini-button, .uets-main-question-buttons-container, .uets-streak-bonus, .ugh-response-popup, .uets-config-overlay"
       ).forEach((el) => el.remove());
 
       sharedState.elementsToCleanup.forEach((el) => {
@@ -1237,7 +1209,7 @@
 
       document
         .querySelectorAll(
-          ".uets-ddg-link, .uets-gemini-button, .uets-copy-prompt-button, .uets-get-answer-button, .uets-main-question-buttons-container, .uets-streak-bonus",
+          ".uets-gemini-button, .uets-main-question-buttons-container, .uets-streak-bonus",
         )
         .forEach((el) => el.remove());
 
@@ -1787,7 +1759,7 @@
 
     // Listen for Backend Responses
     window.addEventListener('UGH_Response_Success', (e) => {
-        showResponsePopup(e.detail.text, false, "AI Assistant");
+        parseAndDisplay(e.detail.text);
     });
     window.addEventListener('UGH_Response_Loading', () => {
         showResponsePopup("Analyzing...", true, "AI Assistant");
