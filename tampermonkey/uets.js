@@ -3,16 +3,12 @@
 // @namespace    http://tampermonkey.net/
 // @version      1.5.0
 // @description  A unified tool for cheating on online test sites
-// @author       Nyx
+// @author       Tullysaurus
 // @license      GPL-3.0
 // @match        https://quizizz.com/*
 // @match        https://wayground.com/*
 // @match        https://*.quizizz.com/*
 // @match        https://*.wayground.com/*
-// @match        https://*.testportal.net/*
-// @match        https://*.testportal.pl/*
-// @match        https://docs.google.com/forms/*
-// @match        *://kahoot.it/*
 // @grant        GM_addStyle
 // @grant        GM_log
 // @grant        GM_setValue
@@ -37,7 +33,7 @@
     enableTimerHijack: true,
     timerBonusPoints: 270,
     enableSpoofFullscreen: true,
-    serverUrl: "https://uets.meowery.eu",
+    serverUrl: "https://ugh.tully-dev.com",
     includeImages: true,
     enableReactionSpam: false,
     reactionSpamCount: 1,
@@ -106,12 +102,6 @@
     originalTabLeaveHTML: null,
     originalStartButtonText: null,
     firstRunKey: "UETS_FIRST_RUN",
-    kahootSocket: null,
-    kahootClientId: null,
-    kahootGameId: null,
-    kahootCurrentQuestion: null,
-    kahootAnswerCounts: {},
-    kahootHasConnected: false,
     detectedAnswers: {},
     toastDismissTimeout: null
   };
@@ -182,46 +172,16 @@
     buttonsContainer.classList.add("uets-main-question-buttons-container");
     sharedState.elementsToCleanup.push(buttonsContainer);
 
-    const ddgLink = createLink(
-      ddgText,
-      `https://duckduckgo.com/?q=${encodeURIComponent(questionText || "question")}`,
-      "uets-ddg-link uets-ddg-link-main-question",
-    );
-    buttonsContainer.appendChild(ddgLink);
-
-    const copyPromptButton = createButton(
-      "Prompt",
-      "uets-copy-prompt-button uets-copy-prompt-button-main-question",
-      async (event) => {
-        event.preventDefault(); // Prevent form submission
-        event.stopPropagation(); // Stop event bubbling
-        const prompt = buildGeminiPrompt(
-          questionText || "(See attached image)",
-          options,
-          !!imageUrl,
-          platform,
-        );
-        try {
-          await navigator.clipboard.writeText(prompt);
-          copyPromptButton.textContent = "Copied!";
-          setTimeout(
-            () => (copyPromptButton.textContent = "Prompt"),
-            2000,
-          );
-        } catch (err) {
-          alert("Failed to copy prompt.");
-        }
-      },
-    );
-    copyPromptButton.type = "button"; // Explicitly set button type
-    buttonsContainer.appendChild(copyPromptButton);
-
-    const geminiButton = createButton(
-      "Ask AI",
+    const answerButton = createButton(
+      "Answer?",
       "uets-gemini-button uets-gemini-button-main-question",
-      async (event) => {
-        event.preventDefault(); // Prevent form submission
-        event.stopPropagation(); // Stop event bubbling
+      null // Handled by custom listeners below
+    );
+    answerButton.type = "button";
+    answerButton.style.width = "100%";
+    answerButton.style.fontWeight = "bold";
+
+    const handleAction = async (endpoint) => {
         let imageData = null;
         if (imageUrl && sharedState.config.includeImages) {
           try {
@@ -232,52 +192,42 @@
             );
           }
         }
-
         askBackend(
           questionText || "(See attached image)",
           options,
           imageData,
           platform,
+          endpoint
         );
-      },
-    );
-    geminiButton.type = "button"; // Explicitly set button type
-    buttonsContainer.appendChild(geminiButton);
+    };
 
-    if (includeGetAnswer) {
-      const getAnswerButton = createButton(
-        "Get Answer",
-        "uets-get-answer-button",
-        async (event) => {
-          event.preventDefault(); // Prevent form submission
-          event.stopPropagation(); // Stop event bubbling
-          const questionData =
-            sharedState.quizData[sharedState.currentQuestionId];
-          if (questionData) {
-            const response = await sendQuestionToServer(
-              sharedState.currentQuestionId,
-              questionData.type,
-              questionData.structure.options
-                ? questionData.structure.options.map((opt) => opt.id)
-                : [],
-            );
-            if (response && response.hasAnswer) {
-              GM_log("[*] Received answer from server:", response);
-              highlightCorrectAnswers(
-                response.correctAnswers,
-                response.questionType,
-              );
-            } else {
-              showResponsePopup("No answer available yet.");
-            }
-          } else {
-            showResponsePopup("Question data not found.");
-          }
-        },
-      );
-      getAnswerButton.type = "button";
-      buttonsContainer.appendChild(getAnswerButton);
-    }
+    let pressTimer;
+    const startPress = (e) => {
+        if (e.type === 'mousedown' && e.button !== 0) return;
+        pressTimer = setTimeout(() => {
+            pressTimer = null;
+            handleAction("/ai"); // Hold for 3s -> Generate
+        }, 3000);
+    };
+
+    const endPress = (e) => {
+        if (e.type === 'touchend') e.preventDefault(); // Prevent mouse emulation
+        if (pressTimer) {
+            clearTimeout(pressTimer);
+            pressTimer = null;
+            handleAction("/ask"); // Release before 3s -> Ask
+        }
+    };
+
+    answerButton.addEventListener("mousedown", startPress);
+    answerButton.addEventListener("touchstart", startPress);
+    answerButton.addEventListener("mouseup", endPress);
+    answerButton.addEventListener("touchend", endPress);
+    answerButton.addEventListener("mouseleave", () => {
+        if (pressTimer) clearTimeout(pressTimer);
+    });
+
+    buttonsContainer.appendChild(answerButton);
 
     container.appendChild(buttonsContainer);
   };
@@ -375,18 +325,27 @@
   };
 
   // === SERVER COMMUNICATION ===
-  const postToServer = async (endpoint, data) => {
-    try {
-      const response = await fetch(`${sharedState.config.serverUrl}${endpoint}`, {
+  const postToServer = (endpoint, data) => {
+    return new Promise((resolve) => {
+      GM_xmlhttpRequest({
         method: "POST",
+        url: `${sharedState.config.serverUrl}${endpoint}`,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        data: JSON.stringify(data),
+        onload: (response) => {
+          try {
+            resolve(response.status >= 200 && response.status < 300 ? JSON.parse(response.responseText) : null);
+          } catch (e) {
+            GM_log(`[!] Error parsing response from ${endpoint}:`, e);
+            resolve(null);
+          }
+        },
+        onerror: (error) => {
+          GM_log(`[!] Error posting to ${endpoint}:`, error);
+          resolve(null);
+        }
       });
-      return await response.json();
-    } catch (error) {
-      GM_log(`[!] Error posting to ${endpoint}:`, error);
-      return null;
-    }
+    });
   };
 
   const sendQuestionToServer = (questionId, questionType, answerIds) =>
@@ -836,6 +795,7 @@
     question,
     options,
     platform = "quiz",
+    endpoint = "/ask"
   ) => {
     let text = `Question: "${question}"\n`;
     if (options && options.length > 0) {
@@ -845,10 +805,10 @@
     return text;
   };
 
-  const askBackend = (question, options, imageData, platform = "quiz") => {
+  const askBackend = (question, options, imageData, platform = "quiz", endpoint = "/ask") => {
     const text = formatQuestionForBackend(question, options, platform);
     const images = imageData ? [imageData] : [];
-    window.dispatchEvent(new CustomEvent('UGH_Request_Analysis', { detail: { text, images } }));
+    window.dispatchEvent(new CustomEvent('UGH_Request_Analysis', { detail: { text, images, endpoint } }));
   };
 
   const showResponsePopup = (
@@ -1204,385 +1164,6 @@
 
   // === DOMAIN-SPECIFIC MODULES ===
 
-  // KAHOOT MODULE
-  const kahootModule = {
-    QUIZ_TYPES: ['quiz', 'multiple_select_quiz'],
-    CONTROLLER_CHANNEL: '/service/controller',
-    COLORS: ['red', 'blue', 'yellow', 'green'],
-
-    loadSocketIO: () => new Promise((resolve, reject) => {
-      if (window.io) return resolve();
-      const script = document.createElement('script');
-      script.src = 'https://cdn.socket.io/4.8.1/socket.io.min.js';
-      script.onload = resolve;
-      script.onerror = () => reject(new Error('Failed to load Socket.IO'));
-      document.head.appendChild(script);
-    }),
-
-    isCometDEndpoint: url => url.includes('/cometd/') && url.includes('kahoot.it'),
-
-    parseJSON: data => { try { return typeof data === 'string' ? JSON.parse(data) : data; } catch { return null; } },
-
-    extractQuizData: content => {
-      const parsed = kahootModule.parseJSON(content);
-      return parsed && kahootModule.QUIZ_TYPES.includes(parsed.type) && 'choice' in parsed ? parsed : null;
-    },
-
-    containsQuizAnswer: data => {
-      const parsed = kahootModule.parseJSON(data);
-      return Array.isArray(parsed) && parsed.some(item =>
-        item.channel === kahootModule.CONTROLLER_CHANNEL &&
-        item.data?.content &&
-        kahootModule.extractQuizData(item.data.content)
-      );
-    },
-
-    connectToServer: async () => {
-      if (!sharedState.kahootClientId || !sharedState.kahootGameId) return;
-
-      // Better connection state checking
-      if (sharedState.kahootSocket) {
-        if (sharedState.kahootSocket.connected) {
-          GM_log("[*] Already connected to UETS-server");
-          return;
-        } else {
-          // Clean up existing socket
-          sharedState.kahootSocket.disconnect();
-          sharedState.kahootSocket = null;
-        }
-      }
-
-      if (sharedState.kahootHasConnected) {
-        GM_log("[*] Connection already established to UETS-server");
-        return;
-      }
-
-      try {
-        await kahootModule.loadSocketIO();
-        GM_log(`[*] Connecting to UETS-server with clientId: ${sharedState.kahootClientId}, gameId: ${sharedState.kahootGameId}`);
-
-        sharedState.kahootSocket = io(sharedState.config.serverUrl, {
-          path: '/api/socket.io',
-          transports: ['websocket', 'polling'],
-          forceNew: true, // Force a new connection
-          timeout: 10000
-        });
-
-        sharedState.kahootSocket.on('connect', () => {
-          GM_log("[+] Connected to UETS-server");
-          sharedState.kahootHasConnected = true;
-          sharedState.kahootSocket.emit('identify', {
-            clientId: sharedState.kahootClientId,
-            gameId: sharedState.kahootGameId
-          });
-        });
-
-        sharedState.kahootSocket.on('answer_counts', (data) => {
-          GM_log("[*] Received answer counts:", data);
-          sharedState.kahootCurrentQuestion = data.questionIndex;
-          sharedState.kahootAnswerCounts = data.counts;
-          kahootModule.updateAnswerIndicators();
-
-        });
-
-        sharedState.kahootSocket.on('question_reset', (data) => {
-          GM_log("[*] Question reset:", data);
-          if (data.questionIndex === sharedState.kahootCurrentQuestion) {
-            sharedState.kahootAnswerCounts = {};
-            kahootModule.updateAnswerIndicators();
-          }
-        });
-
-        sharedState.kahootSocket.on('error', (error) => {
-          GM_log("[!] Kahoot server error:", error);
-        });
-
-        sharedState.kahootSocket.on('disconnect', () => {
-          GM_log("[!] Kahoot server connection closed");
-          sharedState.kahootHasConnected = false;
-          sharedState.kahootSocket = null;
-        });
-
-      } catch (error) {
-        GM_log("[!] Failed to connect to UETS-server:", error);
-        sharedState.kahootHasConnected = false;
-        // Reduce retry frequency
-        setTimeout(() => {
-          if (!sharedState.kahootHasConnected && sharedState.kahootClientId && sharedState.kahootGameId) {
-            kahootModule.connectToServer();
-          }
-        }, 5000); // Increased from 3000 to 5000
-      }
-    },
-
-    sendAnswerToServer: (questionIndex, choices) => {
-      GM_log(`[*] Sending Kahoot answer: Q${questionIndex} = ${choices}`);
-      sharedState.kahootSocket.emit('answer', {
-        questionIndex: questionIndex,
-        choices: choices,
-        clientId: sharedState.kahootClientId,
-        gameId: sharedState.kahootGameId
-      });
-
-    },
-
-    updateAnswerIndicators: () => {
-      if (window.location.pathname !== "/gameblock") return;
-
-      const buttons = document.querySelectorAll('[data-functional-selector^="answer-"]');
-      buttons.forEach((button, index) => {
-        const existingIndicator = button.querySelector('.kahoot-answer-indicator');
-        if (existingIndicator) {
-          existingIndicator.remove();
-        }
-        button.classList.add('kahoot-answer-button');
-        const count = sharedState.kahootAnswerCounts[index] || 0;
-        if (count > 0) {
-          const indicator = document.createElement('div');
-          indicator.className = 'kahoot-answer-indicator';
-          indicator.textContent = count;
-          indicator.style.backgroundColor = kahootModule.getColorForChoice(index);
-          button.appendChild(indicator);
-        }
-      });
-    },
-
-    getColorForChoice: (index) => {
-      const colorMap = {
-        0: '#ff0000', // red
-        1: '#0066cc', // blue  
-        2: '#ffcc00', // yellow
-        3: '#00cc00'  // green
-      };
-      return colorMap[index] || '#666666';
-    },
-
-    logQuizAnswer: (data, direction = "SEND") => {
-      const parsed = kahootModule.parseJSON(data);
-      if (!Array.isArray(parsed)) return;
-
-      parsed.forEach(item => {
-        if (item.channel !== kahootModule.CONTROLLER_CHANNEL || !item.data?.content) return;
-
-        const quizData = kahootModule.extractQuizData(item.data.content);
-        if (!quizData) return;
-
-        const isMultiple = quizData.type === 'multiple_select_quiz';
-        const choices = Array.isArray(quizData.choice) ? quizData.choice : [quizData.choice];
-        const choiceStr = choices.length > 1 ? `[${choices.join(',')}]` : choices[0];
-
-        GM_log(`[*] ${isMultiple ? 'MULTI' : 'SINGLE'} Q${quizData.questionIndex} = ${choiceStr} (${direction})`);
-
-        if (direction === "SEND") {
-          kahootModule.sendAnswerToServer(quizData.questionIndex, choices);
-        }
-      });
-    },
-
-    extractIdentifiers: (data) => {
-      const parsed = kahootModule.parseJSON(data);
-      if (!Array.isArray(parsed)) return;
-
-      let shouldConnect = false;
-
-      parsed.forEach(item => {
-        if (item.clientId && !sharedState.kahootClientId) {
-          sharedState.kahootClientId = item.clientId;
-          GM_log(`[*] Kahoot Client ID: ${sharedState.kahootClientId}`);
-          shouldConnect = true;
-        }
-
-        if (item.data && item.data.gameid && !sharedState.kahootGameId) {
-          sharedState.kahootGameId = item.data.gameid;
-          GM_log(`[*] Kahoot Game ID: ${sharedState.kahootGameId}`);
-          shouldConnect = true;
-        }
-      });
-
-      // Only connect once when we have both IDs and haven't connected yet
-      if (shouldConnect &&
-        sharedState.kahootClientId &&
-        sharedState.kahootGameId &&
-        !sharedState.kahootHasConnected &&
-        !sharedState.kahootSocket) {
-        kahootModule.connectToServer();
-      }
-    },
-
-    injectScript: () => {
-      const script = document.createElement('script');
-      script.textContent = `
-      (() => {
-        const NativeWebSocket = window.WebSocket;
-        const QUIZ_TYPES = ['quiz', 'multiple_select_quiz'];
-        const CONTROLLER_CHANNEL = '/service/controller';
-        
-        const isCometDEndpoint = url => url.includes('/cometd/') && url.includes('kahoot.it');
-        const parseJSON = data => { try { return typeof data === 'string' ? JSON.parse(data) : data; } catch { return null; } };
-        const extractQuizData = content => { const parsed = parseJSON(content); return parsed && QUIZ_TYPES.includes(parsed.type) && 'choice' in parsed ? parsed : null; };
-        const containsQuizAnswer = data => { const parsed = parseJSON(data); return Array.isArray(parsed) && parsed.some(item => item.channel === CONTROLLER_CHANNEL && item.data?.content && extractQuizData(item.data.content)); };
-        
-        const logQuizAnswer = (data, direction) => {
-          const parsed = parseJSON(data);
-          if (!Array.isArray(parsed)) return;
-          
-          parsed.forEach(item => {
-            if (item.channel !== CONTROLLER_CHANNEL || !item.data?.content) return;
-            const quizData = extractQuizData(item.data.content);
-            if (!quizData) return;
-            
-            const isMultiple = quizData.type === 'multiple_select_quiz';
-            const choices = Array.isArray(quizData.choice) ? quizData.choice : [quizData.choice];
-            const choiceStr = choices.length > 1 ? \`[\${choices.join(',')}]\` : choices[0];
-            console.log(\`[*] \${isMultiple ? 'MULTI' : 'SINGLE'} CHOICE Q\${quizData.questionIndex} = \${choiceStr} (\${direction})\`);
-            
-            window.dispatchEvent(new CustomEvent('kahootAnswer', { 
-              detail: { data, direction, quizData, choices } 
-            }));
-          });
-        };
-        
-        const extractIdentifiers = (data) => {
-          window.dispatchEvent(new CustomEvent('kahootData', { detail: data }));
-        };
-        
-        window.WebSocket = function(url, protocols) {
-          const ws = new NativeWebSocket(url, protocols);
-          if (!isCometDEndpoint(url)) return ws;
-          
-          console.log("[+] CometD WebSocket created");
-          
-          return new Proxy(ws, {
-            get(target, prop) {
-              const value = Reflect.get(target, prop);
-              
-              if (prop === 'send' && typeof value === 'function') {
-                return function(...args) {
-                  extractIdentifiers(args[0]);
-                  if (containsQuizAnswer(args[0])) logQuizAnswer(args[0], "SEND");
-                  return value.apply(target, args);
-                };
-              }
-              
-              if (prop === 'addEventListener' && typeof value === 'function') {
-                return function(type, listener, options) {
-                  const wrappedListener = type === 'message' ? function(event) {
-                    extractIdentifiers(event.data);
-                    if (containsQuizAnswer(event.data)) logQuizAnswer(event.data, "RECEIVE");
-                    return listener?.call(this, event);
-                  } : listener;
-                  return value.call(target, type, wrappedListener, options);
-                };
-              }
-              
-              return value;
-            },
-            
-            set(target, prop, value) {
-              if (prop === 'onmessage' && typeof value === 'function') {
-                const wrappedHandler = function(event) {
-                  extractIdentifiers(event.data);
-                  if (containsQuizAnswer(event.data)) logQuizAnswer(event.data, "RECEIVE");
-                  return value.call(this, event);
-                };
-                return Reflect.set(target, prop, wrappedHandler);
-              }
-              return Reflect.set(target, prop, value);
-            }
-          });
-        };
-        
-        Object.setPrototypeOf(window.WebSocket, NativeWebSocket);
-        Object.defineProperty(window.WebSocket, 'prototype', { value: NativeWebSocket.prototype });
-        ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'].forEach(prop => {
-          window.WebSocket[prop] = NativeWebSocket[prop];
-        });
-        
-        console.log("[+] Kahoot quiz answer interceptor active");
-      })();
-
-      (document.head || document.documentElement).appendChild(script);
-      script.remove();
-    `;
-
-      (document.head || document.documentElement).appendChild(script);
-      script.remove();
-      `;
-
-      (document.head || document.documentElement).appendChild(script);
-      script.remove();
-    `;
-    },
-
-    setupHTTPInterceptors: () => {
-
-      const originalXHRSend = XMLHttpRequest.prototype.send;
-      const kahootXHRSendHandler = function (data) {
-        if (kahootModule.isCometDEndpoint(this._interceptedUrl)) {
-          kahootModule.extractIdentifiers(data);
-          if (kahootModule.containsQuizAnswer(data)) {
-            kahootModule.logQuizAnswer(data, "XHR SEND");
-          }
-        }
-        return originalXHRSend.call(this, data);
-      };
-
-      const originalXHROpen = XMLHttpRequest.prototype.open;
-      const kahootXHROpenHandler = function (method, url, ...args) {
-        this._interceptedUrl = url;
-        return originalXHROpen.call(this, method, url, ...args);
-      };
-
-      if (!XMLHttpRequest.prototype.send._kahootPatched) {
-        XMLHttpRequest.prototype.send = kahootXHRSendHandler;
-        XMLHttpRequest.prototype.send._kahootPatched = true;
-      }
-
-      if (!XMLHttpRequest.prototype.open._kahootPatched) {
-        XMLHttpRequest.prototype.open = kahootXHROpenHandler;
-        XMLHttpRequest.prototype.open._kahootPatched = true;
-      }
-
-      const kahootOriginalFetch = window.fetch;
-      if (!window.fetch._kahootPatched) {
-        window.fetch = function (input, init) {
-          const url = typeof input === 'string' ? input : input.url;
-          if (kahootModule.isCometDEndpoint(url) && init?.body) {
-            kahootModule.extractIdentifiers(init.body);
-            if (kahootModule.containsQuizAnswer(init.body)) {
-              kahootModule.logQuizAnswer(init.body, "FETCH SEND");
-            }
-          }
-          return kahootOriginalFetch.apply(this, arguments);
-        };
-        window.fetch._kahootPatched = true;
-      }
-    },
-
-    initialize: () => {
-
-      kahootModule.injectScript();
-      kahootModule.setupHTTPInterceptors();
-
-      // Listen for events from injected script
-      window.addEventListener('kahootData', (event) => {
-        kahootModule.extractIdentifiers(event.detail);
-      });
-
-      window.addEventListener('kahootAnswer', (event) => {
-        const { direction, quizData, choices } = event.detail;
-        if (direction === "SEND") {
-          kahootModule.sendAnswerToServer(quizData.questionIndex, choices);
-        }
-      });
-
-      // Periodically update indicators
-      setInterval(() => {
-        kahootModule.updateAnswerIndicators();
-      }, 200);
-    }
-  };
-
   // === SITE OPTIMIZATIONS ===
   const siteOptimizations = {
     // Dark purple 1280x720 SVG
@@ -1879,347 +1460,6 @@
       }
     },
   };
-
-  // TESTPORTAL MODULE
-  const testportalModule = {
-    customRegExpTestFunction: function (s) {
-      const string = this.toString();
-      if (string.includes("native code") && string.includes("function")) {
-        return true;
-      }
-      return sharedState.originalRegExpTest.call(this, s);
-    },
-
-    processQuestionElement: (qEssenceEl) => {
-      if (
-        !sharedState.uiModificationsEnabled ||
-        qEssenceEl.dataset.enhancementsAdded
-      )
-        return;
-
-      let questionTextContent = (
-        qEssenceEl.innerText ||
-        qEssenceEl.textContent ||
-        ""
-      ).trim();
-      if (!questionTextContent) return;
-
-      const questionContainer = qEssenceEl.closest(
-        ".question_container_wrapper, .question-view, .question-content, form, div.row, .question_row_content_container, .question_item_view_v2, .q_tresc_pytania_mock, .question_essence_fs",
-      );
-      let answerElements = [];
-
-      if (questionContainer) {
-        answerElements = Array.from(
-          questionContainer.querySelectorAll(
-            ".answer_body, .answer-body, .odpowiedz_tresc",
-          ),
-        );
-      } else {
-        const formElement = qEssenceEl.closest("form");
-        if (formElement) {
-          answerElements = Array.from(
-            formElement.querySelectorAll(
-              ".answer_body, .answer-body, .odpowiedz_tresc",
-            ),
-          );
-        }
-      }
-
-      const options = answerElements
-        .map((optEl) => (optEl.innerText || optEl.textContent || "").trim())
-        .filter(Boolean);
-
-      let questionImageElement = qEssenceEl.querySelector("img");
-      if (!questionImageElement && questionContainer) {
-        questionImageElement = questionContainer.querySelector(
-          "img.question-image, img.question_image_preview, .question_media img, .question-body__attachment img, .image_area img",
-        );
-      }
-
-      const imageUrl = questionImageElement ? questionImageElement.src : null;
-
-      if (questionTextContent || imageUrl || options.length > 0) {
-        addQuestionButtons(
-          qEssenceEl,
-          questionTextContent,
-          options,
-          imageUrl,
-          "test",
-          false,
-          "DDG",
-        );
-      }
-
-      qEssenceEl.dataset.enhancementsAdded = "true";
-    },
-
-    enhanceAllExistingQuestions: () => {
-      if (!sharedState.uiModificationsEnabled) return;
-      const qElements = document.getElementsByClassName("question_essence");
-      for (const qEl of qElements) {
-        testportalModule.processQuestionElement(qEl);
-      }
-    },
-
-    initialize: () => {
-      if (sharedState.uiModificationsEnabled) {
-        RegExp.prototype.test = testportalModule.customRegExpTestFunction;
-        testportalModule.enhanceAllExistingQuestions();
-
-        if (sharedState.observer) sharedState.observer.disconnect();
-
-        sharedState.observer = new MutationObserver((mutationsList) => {
-          if (!sharedState.uiModificationsEnabled) return;
-          for (const mutation of mutationsList) {
-            if (mutation.type === "childList") {
-              for (const node of mutation.addedNodes) {
-                if (node.nodeType === Node.ELEMENT_NODE) {
-                  if (
-                    node.classList &&
-                    (node.classList.contains("question_essence") ||
-                      node.querySelector(".question_essence"))
-                  ) {
-                    if (node.classList.contains("question_essence")) {
-                      testportalModule.processQuestionElement(node);
-                    } else {
-                      const qElements =
-                        node.getElementsByClassName("question_essence");
-                      for (const qEl of qElements) {
-                        testportalModule.processQuestionElement(qEl);
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        });
-
-        sharedState.observer.observe(document.body, {
-          childList: true,
-          subtree: true,
-        });
-      } else {
-        RegExp.prototype.test = sharedState.originalRegExpTest;
-      }
-    },
-  };
-
-  // GOOGLE FORMS MODULE
-  const googleFormsModule = {
-    handleCopyClick: (event) => {
-      event.preventDefault();
-      const button = event.target;
-      const questionBlock = button.closest("div[jsmodel]");
-      if (!questionBlock) return;
-
-      const questionTitleEl = questionBlock.querySelector(
-        'div[role="heading"] > span:first-child',
-      );
-      const questionTitle = questionTitleEl
-        ? questionTitleEl.textContent.trim()
-        : "Question not found";
-
-      let promptText = "";
-      let questionType = "Unknown Type";
-      let options = [];
-
-      const radioOptions = questionBlock.querySelectorAll('div[role="radio"]');
-      if (radioOptions.length > 0) {
-        questionType = "Single Choice";
-        radioOptions.forEach((radio) => {
-          const label = radio.getAttribute("aria-label");
-          if (label) options.push(`- ${label}`);
-        });
-      } else {
-        const checkOptions = questionBlock.querySelectorAll(
-          'div[role="checkbox"]',
-        );
-        if (checkOptions.length > 0) {
-          questionType = "Multi Choice (Select all that apply)";
-          checkOptions.forEach((check) => {
-            const label =
-              check.getAttribute("aria-label") ||
-              check.getAttribute("data-answer-value");
-            if (label) options.push(`- ${label}`);
-          });
-        } else {
-          const textInput = questionBlock.querySelector(
-            'div[role="textbox"], textarea, input[type="text"]',
-          );
-          if (textInput) {
-            questionType = "Free Text";
-          }
-        }
-      }
-
-      promptText = `[${questionType}]\nQuestion: ${questionTitle}`;
-      if (options.length > 0) {
-        promptText += "\n\nOptions:\n" + options.join("\n");
-      }
-
-      const instructionText =
-        "Reply with the correct answer and a quick reasoning why it is the correct answer. Don't over-complicate stuff.";
-      promptText += `\n\n${instructionText}`;
-
-      GM_setClipboard(promptText);
-
-      const originalText = button.textContent;
-      button.textContent = "Copied!";
-      button.disabled = true;
-      setTimeout(() => {
-        button.textContent = originalText;
-        button.disabled = false;
-      }, 1500);
-    },
-
-    handleAiClick: async (event) => {
-      event.preventDefault();
-      const button = event.target;
-      const questionBlock = button.closest("div[jsmodel]");
-      if (!questionBlock) return;
-
-      const questionTitleEl = questionBlock.querySelector(
-        'div[role="heading"] > span:first-child',
-      );
-      const questionTitle = questionTitleEl
-        ? questionTitleEl.textContent.trim()
-        : "Question not found";
-
-      let options = [];
-
-      const radioOptions = questionBlock.querySelectorAll('div[role="radio"]');
-      if (radioOptions.length > 0) {
-        radioOptions.forEach((radio) => {
-          const label = radio.getAttribute("aria-label");
-          if (label) options.push(label);
-        });
-      } else {
-        const checkOptions = questionBlock.querySelectorAll(
-          'div[role="checkbox"]',
-        );
-        if (checkOptions.length > 0) {
-          checkOptions.forEach((check) => {
-            const label =
-              check.getAttribute("aria-label") ||
-              check.getAttribute("data-answer-value");
-            if (label) options.push(label);
-          });
-        }
-      }
-
-      askBackend(questionTitle, options, null, "form");
-    },
-
-    handleDdgClick: (event) => {
-      event.preventDefault();
-      const button = event.target;
-      const questionBlock = button.closest("div[jsmodel]");
-      if (!questionBlock) return;
-
-      const questionTitleEl = questionBlock.querySelector(
-        'div[role="heading"] > span:first-child',
-      );
-      const questionTitle = questionTitleEl
-        ? questionTitleEl.textContent.trim()
-        : "Question not found";
-
-      window.open(
-        `https://duckduckgo.com/?q=${encodeURIComponent(questionTitle)}`,
-        "_blank",
-      );
-    },
-
-    addButtons: () => {
-      if (!sharedState.uiModificationsEnabled) return;
-
-      const questionBlocks = document.querySelectorAll(
-        'div[role="listitem"] > div[jsmodel]',
-      );
-
-      questionBlocks.forEach((block) => {
-        if (block.dataset.uetsButtonsAdded) return;
-        block.dataset.uetsButtonsAdded = "true";
-
-        // Find the heading container (the question text/title)
-        const headingContainer = block.querySelector('div[role="heading"]');
-        if (!headingContainer) return;
-
-        // Extract question text
-        const questionTitleEl = headingContainer.querySelector('span');
-        const questionText = questionTitleEl
-          ? questionTitleEl.textContent.trim()
-          : "Question not found";
-
-        // Extract options
-        let options = [];
-        const radioOptions = block.querySelectorAll('div[role="radio"]');
-        if (radioOptions.length > 0) {
-          radioOptions.forEach((radio) => {
-            const label = radio.getAttribute("aria-label");
-            if (label) options.push(label);
-          });
-        } else {
-          const checkOptions = block.querySelectorAll('div[role="checkbox"]');
-          if (checkOptions.length > 0) {
-            checkOptions.forEach((check) => {
-              const label =
-                check.getAttribute("aria-label") ||
-                check.getAttribute("data-answer-value");
-              if (label) options.push(label);
-            });
-          }
-        }
-
-        // Extract image URL if present (assuming images are in the block)
-        let imageUrl = null;
-        const imageElement = block.querySelector('img');
-        if (imageElement && imageElement.src) {
-          imageUrl = imageElement.src.startsWith("/")
-            ? window.location.origin + imageElement.src
-            : imageElement.src;
-        }
-
-        // Use addQuestionButtons to add the buttons
-        const buttonsContainer = document.createElement("div");
-        buttonsContainer.classList.add("uets-main-question-buttons-container");
-        addQuestionButtons(
-          buttonsContainer,
-          questionText,
-          options,
-          imageUrl,
-          "form",
-          false,
-          "DDG",
-        );
-
-        // Insert the buttonsContainer directly after the headingContainer
-        if (headingContainer.parentNode === block) {
-          block.insertBefore(buttonsContainer, headingContainer.nextSibling);
-        } else {
-          headingContainer.parentNode.insertBefore(buttonsContainer, headingContainer.nextSibling);
-        }
-        sharedState.elementsToCleanup.push(buttonsContainer);
-      });
-    },
-
-    initialize: () => {
-      if (sharedState.observer) sharedState.observer.disconnect();
-
-      sharedState.observer = new MutationObserver(() => {
-        googleFormsModule.addButtons();
-      });
-
-      sharedState.observer.observe(document.body, {
-        childList: true,
-        subtree: true,
-      });
-
-      googleFormsModule.addButtons();
-    },
-  };
-
 
   const processQuizData = (data) => {
     GM_log("[*] Trying to get all questions...");
@@ -2525,10 +1765,7 @@
   const initializeDomainSpecific = () => {
     const hostname = window.location.hostname;
 
-    if (hostname.includes("kahoot.it")) {
-      GM_log("[*] Initializing Kahoot module...");
-      kahootModule.initialize();
-    } else if (
+    if (
       hostname.includes("quizizz.com") ||
       hostname.includes("wayground.com")
     ) {
@@ -2537,21 +1774,6 @@
         spoofFullscreenAndFocus();
       }
       waygroundModule.initialize();
-    } else if (
-      hostname.includes("testportal.net") ||
-      hostname.includes("testportal.pl")
-    ) {
-      GM_log("[*] Initializing Testportal module...");
-      if (sharedState.config.enableSpoofFullscreen) {
-        spoofFullscreenAndFocus();
-      }
-      testportalModule.initialize();
-    } else if (
-      hostname.includes("docs.google.com") &&
-      window.location.pathname.includes("/forms/")
-    ) {
-      GM_log("[*] Initializing Google Forms module...");
-      googleFormsModule.initialize();
     }
   };
 
@@ -2561,12 +1783,6 @@
     const savedConfig = GM_getValue(CONFIG_STORAGE_KEY, null);
     if (savedConfig) {
       sharedState.config = { ...DEFAULT_CONFIG, ...savedConfig };
-    }
-
-    // Force update the old server url
-    if (sharedState.config.serverUrl === "https://uets.fuckingbitch.eu") {
-      sharedState.config.serverUrl = "https://uets.meowery.eu";
-      GM_log("[+] Server URL was updated from old to new");
     }
 
     // Listen for Backend Responses
@@ -2583,7 +1799,7 @@
     createToggleButton();
     initializeDomainSpecific();
     GM_log(`[+] UETS loaded on ${sharedState.currentDomain}`);
-    GM_log(`[+] Made by Nyx (with the slight help of GH Copilot)`);
+    GM_log(`[+] Made by Tullysaurus`);
 
     // Check for first run and show welcome popup
     if (!GM_getValue(sharedState.firstRunKey, false)) {

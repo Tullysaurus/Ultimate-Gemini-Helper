@@ -82,7 +82,7 @@ Explanation: [Rich Text Explanation]`;
     };
 
     // === API HANDLER ===
-    const performAnalysis = async (text, imageInput) => {
+    const performAnalysis = async (text, imageInput, endpoint = '/ask') => {
         const apiKey = getApiKey();
         if (!apiKey) {
             dispatchToFrontend('UGH_Response_Error', { message: "API Key missing. Please check settings." });
@@ -114,7 +114,7 @@ Explanation: [Rich Text Explanation]`;
             }
         }
 
-        const apiUrl = `https://ugh.tully-dev.com/ask?key=${apiKey}`;
+        const apiUrl = `https://ugh.tully-dev.com${endpoint}?key=${apiKey}`;
         const payload = {
             contents: [{ parts: parts }],
             generationConfig: CONFIG
@@ -152,8 +152,8 @@ Explanation: [Rich Text Explanation]`;
 
     // === EVENT LISTENERS (Listening to Frontend) ===
     window.addEventListener('UGH_Request_Analysis', (e) => {
-        const { text, images } = e.detail;
-        performAnalysis(text, images);
+        const { text, images, endpoint } = e.detail;
+        performAnalysis(text, images, endpoint);
     });
 
     window.addEventListener('UGH_Save_Key', (e) => {
