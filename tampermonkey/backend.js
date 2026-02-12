@@ -114,7 +114,7 @@ Explanation: [Rich Text Explanation]`;
             }
         }
 
-        const apiUrl = `https://gemini.tully-dev.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=${apiKey}`;
+        const apiUrl = `https://gemini.tully-dev.com/ai/gemini-flash-lite-latest?key=${apiKey}`;
         const payload = {
             contents: [{ parts: parts }],
             generationConfig: CONFIG

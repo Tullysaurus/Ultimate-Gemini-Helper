@@ -67,7 +67,7 @@ async def get_gemini_client():
 
 # --- Endpoints ---
 
-@app.post("/v1beta/models/{model}:generateContent")
+@app.post("/ai/{model}")
 async def generate_content(
     model: str, 
     request: GenerateContentRequest, 
