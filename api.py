@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from dotenv import load_dotenv
 from sqlalchemy.orm import Session
-from database import get_db
+from database import get_db, SessionLocal
 from schema import Question, SavedQuestion, APIKeyHash
 from ai import process_gemini_request_stream
 
@@ -90,6 +90,13 @@ def save_question_to_db(db, prompt_hash, prompt_text, response):
         db.add(saved_q)
     db.commit()
 
+def save_question_background(prompt_hash, prompt_text, response):
+    db = SessionLocal()
+    try:
+        save_question_to_db(db, prompt_hash, prompt_text, response)
+    finally:
+        db.close()
+
 # --- Endpoints ---
 
 
@@ -129,7 +136,7 @@ async def generate_content(
                     }
                 ]
             }
-            background_tasks.add_task(save_question_to_db, db, prompt_hash, prompt_text, response_data)
+            background_tasks.add_task(save_question_background, prompt_hash, prompt_text, response_data)
 
         except Exception as e:
             print(f"Stream Error: {e}")
@@ -186,7 +193,7 @@ async def ask_cached(
                 ]
             }
             
-            background_tasks.add_task(save_question_to_db, db, prompt_hash, prompt_text, response_data)
+            background_tasks.add_task(save_question_background, prompt_hash, prompt_text, response_data)
 
         except Exception as e:
             print(f"Stream Error: {e}")

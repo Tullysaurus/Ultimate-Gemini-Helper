@@ -1,2 +1,3 @@
 .env
 /__pycache__
+uets_database.db
