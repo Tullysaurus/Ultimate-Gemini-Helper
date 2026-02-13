@@ -1,6 +1,6 @@
 # Universal Educational Tool Suite (UETS)
 
-A comprehensive, full-stack solution designed to provide AI-powered assistance and automated optimizations for online educational platforms. This project bridges a Python-based FastAPI backend with powerful client-side Tampermonkey scripts to deliver real-time analysis and automation.
+Probably the single most useful, self-hostable, free school cheating tool. Bypasses api rate limits on gemini, includes free image uploading, works around common anti-cheats found on sites like canvas or edpuzzle. There is quite literally nothing else like this, it can be run completely on your own, off a raspberry pi if you really wanted to, and this allows you to have full control over who, how, and what accesses your cheat.
 
 ## 🚀 Features
 
