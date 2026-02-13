@@ -53,3 +53,6 @@ venv/
 # Database files
 *.db
 uets_database.db
+
+
+cookies.json

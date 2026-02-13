@@ -61,27 +61,12 @@
 
     // === PROMPT GENERATOR ===
     const buildGeminiPrompt = (text, hasImages = false) => {
-        let prompt = `You are an expert educational AI assistant.\nYour task is to analyze the following question or text and identify the correct answer.\n\nContent to analyze:\n"${text}"\n`;
+        let prompt = `${text}\n`;
 
         if (hasImages) {
             prompt += `\n(Note: attached images are part of the question context)\n`;
         }
-
-        prompt += `
-STRICT FORMATTING RULES:
-1. **Correct Answer**: Provide the direct answer clearly.
-2. **Explanation**: Provide concise reasoning below it.
-3. **Rich Text**:
-   - Use **bold** for key terms and the correct option.
-   - Use *italics* for emphasis or definitions.
-   - Use lists (lines starting with -) for steps or multiple points.
-   - Use \`code\` formatting for technical terms or numbers if relevant.
-4. **No Chattyness**: Do NOT ask if the user needs more help. Do NOT ask follow-up questions. End the response immediately after the explanation.
-5. Do not include images in your output.
-OUTPUT STRUCTURE:
-Correct Answer: [Answer]
-
-Explanation: [Rich Text Explanation]`;
+        
         return prompt;
     };
 
