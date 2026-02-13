@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, JSON, DateTime, Text
+from sqlalchemy import Column, String, JSON, DateTime, Text, Boolean, Integer
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
 
@@ -15,3 +15,11 @@ class SavedQuestion(Base):
 class APIKeyHash(Base):
     __tablename__ = "api_key_hashes"
     key_hash = Column(String, primary_key=True)
+    
+    unlimited = Column(Boolean, default=False)
+    
+    usesLeft = Column(Integer, default=0)
+
+    lastUsed = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
+

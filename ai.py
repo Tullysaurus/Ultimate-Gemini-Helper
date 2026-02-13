@@ -20,8 +20,8 @@ if not SECURE_1PSID or not SECURE_1PSIDTS:
 client = GeminiClient(SECURE_1PSID, SECURE_1PSIDTS)
 asyncio.run(client.init(timeout=30, auto_close=False, auto_refresh=True))
 
-
 async def generate_response_stream(prompt_text: str, image_data: bytes = None, model : str=default_model):
+
     if image_data:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as temp_file:
             temp_file.write(image_data)
@@ -38,6 +38,7 @@ async def generate_response_stream(prompt_text: str, image_data: bytes = None, m
                 os.remove(temp_file_path)
     else:
         async for chunk in client.generate_content_stream(prompt_text):
+            print(chunk.text_delta)
             yield chunk.text_delta
 
 async def process_gemini_request_stream(contents, model=default_model):

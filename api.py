@@ -97,6 +97,32 @@ def save_question_background(prompt_hash, prompt_text, response):
     finally:
         db.close()
 
+
+
+def validateApiKey(db: Session, key: str):
+    hashed_key = hashlib.sha256(key.encode()).hexdigest()
+    data = db.query(APIKeyHash).filter(APIKeyHash.key_hash == hashed_key).first()
+
+    if not data:
+        return False
+    
+    data.lastUsed = datetime.utcnow()
+
+    if data.unlimited:
+        db.commit()
+
+        return True
+    
+    if data.usesLeft > 0:
+        data.usesLeft -= 1
+        db.commit()
+
+        return True
+    
+    return False
+
+
+
 # --- Endpoints ---
 
 
@@ -108,8 +134,8 @@ async def generate_content(
     db: Session = Depends(get_db)
 ):
     # 1. Validate API Key
-    hashed_key = hashlib.sha256(key.encode()).hexdigest()
-    if not db.query(APIKeyHash).filter(APIKeyHash.key_hash == hashed_key).first():
+    
+    if not validateApiKey(db, key):
         raise HTTPException(status_code=400, detail="Invalid API Key")
 
     async def stream_generator():
@@ -117,6 +143,7 @@ async def generate_content(
         try:
             async for chunk in process_gemini_request_stream(request.contents):
                 full_response_text += chunk
+                print(chunk, end="")
                 yield chunk
             
             # Save to DB (Overwrite)
@@ -151,9 +178,8 @@ async def ask_cached(
     key: str = Query(..., description="The API Key"),
     db: Session = Depends(get_db)
 ):
-    hashed_key = hashlib.sha256(key.encode()).hexdigest()
-
-    if not db.query(APIKeyHash).filter(APIKeyHash.key_hash == hashed_key).first():
+    
+    if not validateApiKey(db, key):
         raise HTTPException(status_code=400, detail="Invalid API Key")
 
     async def stream_generator():

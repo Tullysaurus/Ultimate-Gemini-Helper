@@ -5,7 +5,7 @@
 # --- IMPORTANT: CONFIGURE THIS ---
 # Set the absolute path to your project directory on the Raspberry Pi.
 # For example: /home/pi/Ultimate-Gemini-Helper
-PROJECT_DIR="/home/tully/Ultimate-Gemini-Helper"
+PROJECT_DIR=$(dirname -- "$(readlink -f "$0")")
 # ---------------------------------
 
 # Navigate to the project directory. Exit if it doesn't exist.
@@ -35,6 +35,9 @@ if [ -f "requirements.txt" ]; then
   echo "Installing/updating Python dependencies..."
   pip install -r requirements.txt
 fi
+
+source .env
+cloudflared tunnel run --token $TUNNEL_TOKEN &
 
 # Run the main application using python3.
 # The server will run in the foreground, which is what systemd expects.

@@ -47,7 +47,7 @@ htmlcov/
 .cache
 
 # Environments
-.env
+*.env*
 venv/
 
 # Database files
