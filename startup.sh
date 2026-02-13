@@ -46,6 +46,7 @@ if [[ "$1" == "--refresh" ]]; then
   sudo systemctl start cloudflared
 fi
 
+sudo systemctl reset-failed cloudflared
 
 # Run the main application using python3.
 # The server will run in the foreground, which is what systemd expects.
