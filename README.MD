@@ -25,6 +25,10 @@ A comprehensive, full-stack solution designed to provide AI-powered assistance a
 * **Custom Profiles**: Choose between different modes like "True Stealth," "Stealthy Extended," or "LMAO" for varying levels of automation.
 
 
+## 🔮 Upcoming Features
+
+* **EdPuzzle Support**: Support for EdPuzzle (even embedded in Canvas pages) will be added in the future.
+* **Canvas Integration**: Support for Canvas quizzes/tests will be added soon.
 
 ## 🛠️ Project Structure
 
