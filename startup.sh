@@ -22,10 +22,12 @@ git pull
 
 # (Optional) If you use a Python virtual environment, activate it.
 # Make sure the path to your venv is correct.
+echo "Activating virtual environment..."
 if [ -f ".venv/bin/activate" ]; then
-  echo "Activating virtual environment..."
-  source .venv/bin/activate
+  python -m venv .venv
 fi
+source .venv/bin/activate
+
 
 # (Optional) Install/update dependencies if requirements.txt has changed.
 # It's good practice to do this after pulling new code.
