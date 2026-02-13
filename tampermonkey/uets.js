@@ -318,9 +318,9 @@
     );
     answerButton.innerHTML = `${ICONS.psychology} Ask AI`;
 
-    const handleAction = async (endpoint) => {
+    const handleAction = async (endpoint, forceNoImage = false) => {
         let imageData = null;
-        if (imageUrl && sharedState.config.includeImages) {
+        if (imageUrl && sharedState.config.includeImages && !forceNoImage) {
           try {
             imageData = await fetchImageAsBase64(imageUrl);
           } catch (error) {
@@ -365,6 +365,44 @@
     });
 
     buttonsContainer.appendChild(answerButton);
+
+    if (imageUrl) {
+        const noImageButton = createButton(
+            "Ask AI (No Image)",
+            "uets-gemini-button uets-gemini-button-no-image",
+            null
+        );
+        noImageButton.innerHTML = `${ICONS.psychology} No Image`;
+        noImageButton.style.marginLeft = "8px";
+
+        let pressTimerNoImg;
+        const startPressNoImg = (e) => {
+            if (e.type === 'mousedown' && e.button !== 0) return;
+            pressTimerNoImg = setTimeout(() => {
+                pressTimerNoImg = null;
+                handleAction("/ai", true);
+            }, 3000);
+        };
+
+        const endPressNoImg = (e) => {
+            if (e.type === 'touchend') e.preventDefault();
+            if (pressTimerNoImg) {
+                clearTimeout(pressTimerNoImg);
+                pressTimerNoImg = null;
+                handleAction("/ask", true);
+            }
+        };
+
+        noImageButton.addEventListener("mousedown", startPressNoImg);
+        noImageButton.addEventListener("touchstart", startPressNoImg);
+        noImageButton.addEventListener("mouseup", endPressNoImg);
+        noImageButton.addEventListener("touchend", endPressNoImg);
+        noImageButton.addEventListener("mouseleave", () => {
+            if (pressTimerNoImg) clearTimeout(pressTimerNoImg);
+        });
+
+        buttonsContainer.appendChild(noImageButton);
+    }
 
     container.appendChild(buttonsContainer);
   };
@@ -1772,7 +1810,6 @@
 
     // Listen for Backend Responses
     window.addEventListener('UGH_Response_Success', (e) => {
-        GM_log(e.detail.text);
         parseAndDisplay(e.detail.text);
     });
     window.addEventListener('UGH_Response_Progress', (e) => {

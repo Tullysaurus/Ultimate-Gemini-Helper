@@ -169,7 +169,7 @@ async def ask_cached(
         try:
             async for chunk in process_gemini_request_stream(request.contents):
                 full_response_text += chunk
-                print(chunk)
+                print(chunk, end="")
                 yield chunk
             
             response_data = {

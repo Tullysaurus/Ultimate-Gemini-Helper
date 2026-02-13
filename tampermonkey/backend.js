@@ -25,6 +25,10 @@
         topK: 64
     };
 
+    // === STATE ===
+    let currentRequest = null;
+    let currentAnalysisId = 0;
+
     // === UTILITIES ===
     const getApiKey = () => GM_getValue(API_KEY_STORAGE, "");
     const setApiKey = (key) => GM_setValue(API_KEY_STORAGE, key.trim());
@@ -83,6 +87,13 @@ Explanation: [Rich Text Explanation]`;
 
     // === API HANDLER ===
     const performAnalysis = async (text, imageInput, endpoint = '/ask') => {
+        const analysisId = ++currentAnalysisId;
+
+        if (currentRequest) {
+            currentRequest.abort();
+            currentRequest = null;
+        }
+
         const apiKey = getApiKey();
         if (!apiKey) {
             dispatchToFrontend('UGH_Response_Error', { message: "API Key missing. Please check settings." });
@@ -98,6 +109,7 @@ Explanation: [Rich Text Explanation]`;
         if (imageInput) {
             const imagesToProcess = Array.isArray(imageInput) ? imageInput : [imageInput];
             for (const img of imagesToProcess) {
+                if (analysisId !== currentAnalysisId) return;
                 try {
                     let imageData = null;
                     if (typeof img === 'object' && img.base64Data && img.mimeType) {
@@ -114,6 +126,8 @@ Explanation: [Rich Text Explanation]`;
             }
         }
 
+        if (analysisId !== currentAnalysisId) return;
+
         const apiUrl = `https://ugh.tully-dev.com${endpoint}?key=${apiKey}`;
         const payload = {
             contents: [{ parts: parts }],
@@ -122,13 +136,14 @@ Explanation: [Rich Text Explanation]`;
 
         let streamProcessed = false;
 
-        GM_xmlhttpRequest({
+        currentRequest = GM_xmlhttpRequest({
             method: "POST",
             url: apiUrl,
             headers: { "Content-Type": "application/json" },
             data: JSON.stringify(payload),
             responseType: 'stream',
             onreadystatechange: async (response) => {
+                if (analysisId !== currentAnalysisId) return;
                 if (response.readyState >= 2 && !streamProcessed) {
                     if (!response.response) return;
                     streamProcessed = true;
