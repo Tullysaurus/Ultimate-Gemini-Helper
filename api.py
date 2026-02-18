@@ -1,6 +1,6 @@
 import os
 import hashlib
-from datetime import datetime
+from datetime import datetime, UTC
 from fastapi import FastAPI, HTTPException, Query, Request, Depends, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -91,6 +91,9 @@ def save_question_to_db(db, prompt_hash, prompt_text, response):
     db.commit()
 
 def save_question_background(prompt_hash, prompt_text, response):
+    # disable saving questions for now
+    return
+
     db = SessionLocal()
     try:
         save_question_to_db(db, prompt_hash, prompt_text, response)
@@ -106,7 +109,7 @@ def validateApiKey(db: Session, key: str):
     if not data:
         return False
     
-    data.lastUsed = datetime.utcnow()
+    data.lastUsed = datetime.now(UTC)
 
     if data.unlimited:
         db.commit()
@@ -141,9 +144,9 @@ async def generate_content(
     async def stream_generator():
         full_response_text = ""
         try:
-            async for chunk in process_gemini_request_stream(request.contents):
+            async for chunk in process_gemini_request_stream(request.contents, key):
                 full_response_text += chunk
-                print(chunk, end="")
+                # print(chunk, end="")
                 yield chunk
             
             # Save to DB (Overwrite)
@@ -200,9 +203,9 @@ async def ask_cached(
         # Not cached
         full_response_text = ""
         try:
-            async for chunk in process_gemini_request_stream(request.contents):
+            async for chunk in process_gemini_request_stream(request.contents, key):
                 full_response_text += chunk
-                print(chunk, end="")
+                # print(chunk, end="")
                 yield chunk
             
             response_data = {

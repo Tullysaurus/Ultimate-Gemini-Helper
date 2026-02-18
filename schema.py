@@ -20,6 +20,8 @@ class APIKeyHash(Base):
     
     usesLeft = Column(Integer, default=0)
 
+    chat_metadata = Column(String, default={}, nullable=True)
+
     lastUsed = Column(DateTime, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)
 
