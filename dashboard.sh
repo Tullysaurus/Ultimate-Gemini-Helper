@@ -14,7 +14,7 @@ fi
 tmux new-session -d -s $SESSION
 
 # Split vertically for logs (bottom section)
-tmux split-window -v -p 70 -t $SESSION
+tmux split-window -v -p 60 -t $SESSION
 
 # ----- TOP SECTION -----
 
@@ -22,7 +22,7 @@ tmux split-window -v -p 70 -t $SESSION
 tmux select-pane -t $SESSION:0.0
 
 # Split top pane horizontally
-tmux split-window -h -p 80 -t $SESSION:0.0
+tmux split-window -h -p 70 -t $SESSION:0.0
 
 # Top-Left pane: fastfetch refreshing
 tmux send-keys -t $SESSION:0.0 \
