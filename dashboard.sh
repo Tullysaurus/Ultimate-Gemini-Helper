@@ -1,7 +1,11 @@
 #!/bin/bash
 
-SESSION="pi-dashboard"
-CONTAINER_NAME="gemini-api" # Matches the name in our compose file
+SESSION="ugh-dashboard"
+CONTAINER_NAME="gemini-api"
+HTOP_CONF="$HOME/.config/htop/ugh_dashboard_htoprc"
+
+# Create the htop directory if it doesn't exist
+mkdir -p "$(dirname "$HTOP_CONF")"
 
 # If already running, just attach
 tmux has-session -t $SESSION 2>/dev/null
@@ -13,31 +17,18 @@ fi
 # Start base session
 tmux new-session -d -s $SESSION
 
-# Split vertically for logs (bottom section)
-tmux split-window -v -p 60 -t $SESSION
+# Split vertically: Top = System, Bottom = Logs
+tmux split-window -v -p 50 -t $SESSION
 
-# ----- TOP SECTION -----
+# ----- TOP SECTION (Custom htop) -----
+# We point htop to your custom config file
+tmux send-keys -t $SESSION:0.0 "HTOPRC=$HTOP_CONF htop" C-m
 
-# Select top pane
-tmux select-pane -t $SESSION:0.0
-
-# Split top pane horizontally
-tmux split-window -h -p 70 -t $SESSION:0.0
-
-# Top-Left pane: fastfetch refreshing
-tmux send-keys -t $SESSION:0.0 \
-'while true; do clear; fastfetch; sleep 10; done' C-m
-
-# Top-Right pane: btop
-tmux send-keys -t $SESSION:0.1 "btop" C-m
-
-# ----- BOTTOM SECTION (The Logs) -----
-
-# We use docker logs -f to follow, and piping to ccze for color
-# Note: ccze might need the -R flag for certain terminal emulators
-tmux send-keys -t $SESSION:0.2 \
-"docker logs -f $CONTAINER_NAME 2>&1 | stdbuf -oL ccze -A" C-m
+# ----- BOTTOM SECTION (Log Highlight) -----
+# We use stdbuf to prevent log buffering and force docker to keep colors
+tmux send-keys -t $SESSION:0.1 \
+"docker logs -f --tail 50 $CONTAINER_NAME 2>&1" C-m
 
 # Final layout polish
-tmux select-pane -t $SESSION:0.2
+tmux select-pane -t $SESSION:0.1
 tmux attach -t $SESSION
