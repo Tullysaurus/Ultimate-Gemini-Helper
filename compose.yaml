@@ -4,8 +4,8 @@ services:
     container_name: gemini-api
     restart: unless-stopped
     environment:
-      # Tells the code where to save the refreshed session
-      - GEMINI_COOKIE_PATH=/app/data/gemini_cookies
+      - DATABASE_URL=${DATABASE_URL}
+      - GEMINI_COOKIE_PATH=${GEMINI_COOKIE_PATH}
     volumes:
       - ./data:/app/data
       # Maps local folder to the path used by the environment variable
