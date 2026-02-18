@@ -1,0 +1,26 @@
+services:
+  app:
+    build: .
+    container_name: gemini-api
+    restart: unless-stopped
+    environment:
+      # Tells the code where to save the refreshed session
+      - GEMINI_COOKIE_PATH=/app/data/gemini_cookies
+    volumes:
+      - ./data:/app/data
+      # Maps local folder to the path used by the environment variable
+      - ./gemini_cookies:/app/data/gemini_cookies
+    networks:
+      - tunnel_net
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TOKEN}
+    networks:
+      - tunnel_net
+
+networks:
+  tunnel_net:
+    driver: bridge

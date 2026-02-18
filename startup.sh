@@ -41,7 +41,7 @@ if [[ "$1" == "--refresh" ]]; then
   fi
 
   echo "Enabling cloudflared service"
-  sudo cloudflared service install "$TUNNEL_TOKEN"
+  sudo cloudflared service install "$CLOUDFLARE_TOKEN"
 
   sudo systemctl daemon-reload
   sudo systemctl enable cloudflared
