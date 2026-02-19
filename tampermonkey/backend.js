@@ -18,6 +18,7 @@
 
     // === CONSTANTS ===
     const API_KEY_STORAGE = "UGH_GEMINI_API_KEY";
+    const HOSTNAME_STORAGE = "UGH_GEMINI_HOSTNAME"
     const CONFIG = {
         temperature: 0.2,
         maxOutputTokens: 2048,
@@ -32,6 +33,8 @@
     // === UTILITIES ===
     const getApiKey = () => GM_getValue(API_KEY_STORAGE, "");
     const setApiKey = (key) => GM_setValue(API_KEY_STORAGE, key.trim());
+    const getHostname = () => GM_getValue(HOSTNAME_STORAGE, "https://ugh.tully-dev.com");
+    const setHostname = (hostname) => GM_setValue(HOSTNAME_STORAGE, hostname.trim());
 
     const fetchImageAsBase64 = (imageUrl) => {
         return new Promise((resolve, reject) => {
@@ -113,7 +116,7 @@
 
         if (analysisId !== currentAnalysisId) return;
 
-        const apiUrl = `https://ugh.tully-dev.com${endpoint}?key=${apiKey}`;
+        const apiUrl = `${getHostname()}${endpoint}?key=${apiKey}`;
         const payload = {
             contents: [{ parts: parts }],
             generationConfig: CONFIG
@@ -184,6 +187,10 @@
     window.addEventListener('UGH_Save_Key', (e) => {
         setApiKey(e.detail.key);
         // Optional: Confirm save back to frontend?
+    });
+
+    window.addEventListener('UGH_Save_Hostname', (e) => {
+        setHostname(e.detail.hostname);
     });
 
     window.addEventListener('UGH_Get_Key_Request', () => {
