@@ -54,5 +54,5 @@ venv/
 *.db
 uets_database.db
 
-
-cookies.json
+data/
+gemini_cookies/
