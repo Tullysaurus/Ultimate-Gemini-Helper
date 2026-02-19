@@ -1,95 +1,138 @@
-# Universal Educational Tool Suite (UETS)
+# Ultimate Gemini Helper (UGH)
 
-Probably the single most useful, self-hostable, free school cheating tool. Bypasses api rate limits on gemini, includes free image uploading, works around common anti-cheats found on sites like canvas or edpuzzle. There is quite literally nothing else like this, it can be run completely on your own, off a raspberry pi if you really wanted to, and this allows you to have full control over who, how, and what accesses your cheat.
+> The ultimate free, in-browser ai assistant
 
-## 🚀 Features
+The best completely fre&#x65;*&#xA0;*&#x61;nd open-source tool for in-browser ai assistance. Simply select text or images on a webpage, click the icon, and let the ai find the answers for you. This repository contains the full backend code (with an api), sample tampermonkey scripts (with a modified version of \[Nyx's Universal Educational Tool Suite]\(<https://greasyfork.org/en/scripts/550591-universal-educational-tool-suite>) that uses the backend), and support for docker.
 
-### Core Backend (Python/FastAPI)
+## Table of Contents
 
-* **Gemini AI Integration**: Mirrors the Gemini API to provide intelligent question analysis and explanations.
-* **Session Management**: Uses SQLAlchemy with a SQLite database to track questions, saved answers, and API keys.
-* **Streaming Responses**: Supports real-time AI response streaming for a smoother user experience.
-* **CORS Enabled**: Fully configured for cross-origin requests from browser environments.
+- \[Features]\(#features)
 
-### User Scripts (Tampermonkey)
+  - \[Backend]\(#backend)
+  - \[User Scripts]\(#user-scripts)
+- \[Upcoming Features]\(#upcoming-features)
+- \[Setup]\(#setup)
 
-* **Universal Gemini Helper (UGH)**:
-* **Selection Analysis**: Highlight text or images on any webpage and press the floating AI button to get instant explanations.
-* **Image Support**: Automatically extracts images from the page, converts them to Base64, and sends them to the AI for visual analysis.
+  - \[Backend Setup]\(#backend-setup)
+  - \[Client Setup]\(#client-setup)
+- \[Usage]\(#usage)
 
+  - \[Save your API Key]\(#save-your-api-key)
+  - \[Sample `frontend.js` usage]\(#sample-frontendjs-usage)
+- \[Disclaimer (Skill Issue)]\(#disclaimer)
 
-* **Educational Platform Enhancements (UETS)**:
-* **Stealth Mode**: Features like "Spoof Fullscreen" and "Focus Spoofing" prevent sites from detecting tab switching or exiting fullscreen mode.
-* **Time Management**: Automatically modifies "Time Taken" values and hijacks timers to maximize scores while maintaining a human-like appearance.
-* **Answer Highlighting**: Identifies and highlights correct answers directly on the UI for supported platforms like Quizizz.
-* **Custom Profiles**: Choose between different modes like "True Stealth," "Stealthy Extended," or "LMAO" for varying levels of automation.
+## Features
 
+### Backend
 
-## 🔮 Upcoming Features
+> Written with Python using FastAPI
 
-* **EdPuzzle Support**: Support for EdPuzzle (even embedded in Canvas pages) will be added in the future.
-* **Canvas Integration**: Support for Canvas quizzes/tests will be added soon.
+- **Gemini Integration**: The backend is built specifically for gemini, and uses the \`gemini\_webapi\` library (<https://pypi.org/project/gemini-webapi/>) to use gemini completely for free without api keys.
+- **Session Management**: Uses either a local SQLite database or cloud PostgreSQL database to store your own api keys (with custom usage limits, basic tracking features, and chat persistance), and cache questions and their responses (to speed up the process for users asking the same questions).
+- **Streaming Responses**: Supports real-time streaming from the AI to provide a smoother user experience.
+- **CORS Enabled**: Fully configured for cross-origin requests from browser-environments.
 
-## 🛠️ Project Structure
+### User Scripts
 
-```text
-├── api.py            # FastAPI application and endpoint definitions
-├── ai.py             # Gemini client integration and AI processing logic
-├── database.py       # SQLAlchemy engine and session configuration
-├── schema.py         # Database models for questions and API keys
-├── main.py           # Application entry point
-├── tampermonkey/
-│   ├── backend.js    # Core logic for API requests and key storage
-│   ├── frontend.js   # UI components, floating buttons, and popups
-│   └── uets.js       # Site-specific scripts for educational platforms
+> These scripts STRICTLY rely on \[Tampermonkey]\(<https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo>)
 
-```
+- Backend Script (\[backend.js]\(tampermonkey/backend.js))
 
-## ⚙️ Setup Instructions
+  - Provides a simple interface to use event listeners to interact with the api on the backend.
+- Sample Frontend Script (\[frontend.js (all webpages)]\(tampermonkey/frontend.js))
+
+  - Sample script for how you can interact with the backend script from the client side. *Make sure to use tampermonkey functions to bypass CORS policies if you want to do this yourself*
+- Modified version of \[Nyx's UETS]\(<https://greasyfork.org/en/scripts/550591-universal-educational-tool-suite>) \[Universal Educational Tool Suite]\(tampermonkey/uets.js)
+
+  - A modified version of Nyx's UETS that uses the custom backend 
+  - This is still being actively developed to add support for more sites
+
+### Upcoming Features
+
+- **Edpuzzle support**: Add a gui injected into edpuzzles (including embeds) that allows for speed manipulation, automatic question answering, etc.
+- **Canvas integration**: Interface with canvas and better avoid detection.
+
+## Setup
 
 ### Backend Setup
 
-1. **Clone the repository.**
-2. **Install dependencies**:
-```bash
-pip install fastapi uvicorn sqlalchemy gemini-webapi python-dotenv
+1. **Clone the repository**.
+2. **Install \[docker-compose]\(**[**https://docs.docker.com/compose/install/**](https://docs.docker.com/compose/install/)**)**
+3. **Configure environement variables**: Create a `.env` file in the root directory:
 
-```
-
-
-3. **Configure Environment Variables**:
-Create a `.env` file in the root directory:
 ```env
 SECURE_1PSID=your_google_1psid
 SECURE_1PSIDTS=your_google_1psidts
 
+CLOUDFLARE_TOKEN=your_cloudflare_tunnel_token # if you're using one
+DATABASE_URL=your_database_url # leave blank if you want to use a local database (please dont do this)
+
+GEMINI_COOKIE_PATH=/app/data/gemini_cookies # Im not sure if this is absolutely needed but it helps for readability
 ```
 
+> Refer to the instructions \[here]\(<https://github.com/HanaokaYuzu/Gemini-API?tab=readme-ov-file#authentication>) on how to find secure\_1psid and secure\_1psidts
+>
+> Read the \[disclaimer]\(#disclaimer) for more information on these cookies
 
-4. **Run the Server**:
-```bash
-python main.py
+4. Execution
 
+If using a cloud server, run:
+
+```shell
+docker-compose up -d --build
 ```
 
+to build the docker image and execute it.
 
+If using a home server, use `startup.sh` and create a service that runs
+
+```shell
+sudo startup.sh --refresh
+```
+
+on every restart (this is assuming your home isnt down too often, if it is, remove the `--refresh` argument).
+
+> Both of these implementations rely on cloudflare tunnels to expose themselves to the internet, modify the code as needed to match your usecase (See the \[disclaimer]\(#usecase))
 
 ### Client Setup
 
-1. Install the [Tampermonkey](https://www.tampermonkey.net/) extension in your browser.
-2. Add the scripts located in the `tampermonkey/` folder:
-* `backend.js` (Required)
-* `frontend.js` (Optional works on all sites, less useful than uets on its supported sites)
-* `uets.js` (Optional, for specific platform tools, but much more integrated)
+1. Install and setup the \[Tampermonkey]\(<https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo>) extension (See full instructions \[here]\(<https://gist.github.com/jesterjunk/0344f1a7c1f67f52ffc716b17ee7f240>))
+2. Install the scripts in the \[tampermonkey]\(tampermonkey/) folder
 
+- `backend.js` (Required, does not need modification)
+- `frontend.js` (Optional, works on all sites but has worse UX)
+- `uets.js` (Optional, modified version of \[Nyx's UETS]\(<https://greasyfork.org/en/scripts/550591-universal-educational-tool-suite>))
 
-3. Configure your `serverUrl` in the script settings to match your running backend (default: `https://ugh.tully-dev.com`).
+3. Configure your `serverUrl` in `uets.js` and `apiUrl` in `backend.js`
 
-## 📝 Usage
+## Usage
 
-* **Settings Menu**: Press and release the floating trigger button 3 times within 2 seconds to open the configuration menu.
-* **Asking AI**: Highlight text/images and click the floating brain icon. For specific quiz platforms, "Ask AI" buttons will appear directly next to questions.
+### Save your API Key
 
-## ⚖️ License
+1. Navigate to any webpage with all scripts enabled.
+2. Hover over the icon in the bottom left.
+3. Insert your custom API Key into the prompt.
+4. From now on it should be saved permanently.
 
-This project is licensed under the **GPL-3.0 License**.
+### Sample `frontend.js` Usage
+
+1. Navigate to any webpage with `backend.js` and `frontend.js` enabled.
+2. Select any text or images on the page.
+3. Click on the icon in the bottom left.
+4. Wait for your answer(s) to load.
+
+## Disclaimer
+
+### Cookies
+
+The code will automatically update the SECURE\_1PSID and SECURE\_1PSIDTS values if left running (and will store the values of them every 5 minutes), but if you open gemini logged into the same account that the script is running, theres a good chance it will desync these values, and you might have to edit the env to change them.
+
+The script shouldnt have any cookie errors as long as you dont open the gemini webpage.
+
+### Timing
+
+Sometimes gemini\_webapi takes a significantly longer time than usual to generate a response, the cause of this is still unknown. Only fix is to increase the `timeout` in the `client.init()` function in \[ai.py]\(ai.py).
+
+### Usecase
+
+I'm a very amateur developer, this might not port well to your usecase, its mainly meant for me and a few close friends. I made this because I dont want to pay a crap ton of money for gemini api calls and also wanted what is essentially questionAI or all those cheating tools in my browser without paying their crazy subscriptions.
