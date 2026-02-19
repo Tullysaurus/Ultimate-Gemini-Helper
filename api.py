@@ -58,15 +58,15 @@ class GenerateContentRequest(BaseModel):
     generationConfig: Optional[GenerationConfig] = None
     safetySettings: Optional[List[SafetySetting]] = None
 
+
 class QuestionQuery(BaseModel):
     questionId: str
     questionType: Optional[str] = None
     answerIds: Optional[List[str]] = None
 
 class AnswerSubmission(BaseModel):
-    questionId: str
+    prompt: str
     correctAnswers: Any
-    answerType: Optional[str] = None
 
 # --- Helpers ---
 
@@ -204,7 +204,7 @@ async def ask_cached(
 
 @app.post("/answers")
 async def save_answers(
-    request: GenerateContentRequest,
+    request: AnswerSubmission,
     background_tasks: BackgroundTasks,
     key: str = Query(..., description="The API Key"),
     db: Session = Depends(get_db)
@@ -213,11 +213,10 @@ async def save_answers(
         raise HTTPException(status_code=400, detail="Invalid API Key")
 
     # For now we just print the submitted answers. You can extend this to save to DB or do other processing.
-    request_json = request.contents
 
     print("Received answer submission:")
-    print(request_json)
-    print(request_json["prompt"], request_json["answers"])
+    print(request)
+    print(request.prompt, request.correctAnswers)
 
     
     return {"status": "success", "message": "Answers received"}
