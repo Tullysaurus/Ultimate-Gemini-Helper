@@ -66,7 +66,7 @@ class QuestionQuery(BaseModel):
 
 class AnswerSubmission(BaseModel):
     prompt: str
-    correctAnswers: Any
+    answers: Any
 
 # --- Helpers ---
 
@@ -215,8 +215,11 @@ async def save_answers(
     # For now we just print the submitted answers. You can extend this to save to DB or do other processing.
 
     print("Received answer submission:")
-    print(request)
-    print(request.prompt, request.correctAnswers)
+    print(request.prompt, request.answers)
 
+    prompt_hash = hashlib.sha256(request.prompt.encode()).hexdigest()
+    response = " || ".join(request.answers)
+
+    save_question_to_db(db, prompt_hash, request.prompt, response)
     
     return {"status": "success", "message": "Answers received"}
