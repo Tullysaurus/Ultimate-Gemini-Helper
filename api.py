@@ -213,7 +213,7 @@ async def save_answers(
         raise HTTPException(status_code=400, detail="Invalid API Key")
 
     # For now we just print the submitted answers. You can extend this to save to DB or do other processing.
-    request_json = request.model_dump_json()
+    request_json = request.contents
 
     print("Received answer submission:")
     print(request_json)
