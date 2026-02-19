@@ -107,7 +107,7 @@ async def generate_response_stream(prompt_text: str, key, db, files: list[bytes]
 
     data = get_key_in_db(key, db)
     if data:
-        if datetime.utcnow() - data.lastUsed > timedelta(minutes=30):
+        if datetime.utcnow() - data.lastUsed > timedelta(minutes=5):
             print("Chat expired due to inactivity. Starting new chat.")
             await delete_chat(key, db)
 

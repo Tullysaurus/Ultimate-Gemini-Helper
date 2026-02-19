@@ -92,7 +92,7 @@ def save_question_to_db(db, prompt_hash, prompt_text, response):
 
 def save_question_background(prompt_hash, prompt_text, response):
     # disable saving questions for now
-    return
+    # return
 
     db = SessionLocal()
     try:
