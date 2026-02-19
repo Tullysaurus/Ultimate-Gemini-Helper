@@ -18,7 +18,7 @@ The best completely fre&#x65;*&#xA0;*&#x61;nd open-source tool for in-browser ai
 - [Usage](#usage)
 
   - [Save your API Key](#save-your-api-key)
-  - [Sample `frontend.js` usage](#sample-frontendjs-usage)
+  - [Sample frontend usage](#sample-frontend-usage)
 - [Disclaimer (Skill Issue)](#disclaimer)
 
 ## Features
@@ -114,7 +114,7 @@ on every restart (this is assuming your home isnt down too often, if it is, remo
 3. Insert your custom API Key into the prompt.
 4. From now on it should be saved permanently.
 
-### Sample `frontend.js` Usage
+### Sample Frontend Usage
 
 1. Navigate to any webpage with `backend.js` and `frontend.js` enabled.
 2. Select any text or images on the page.
