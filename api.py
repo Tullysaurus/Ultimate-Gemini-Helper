@@ -58,12 +58,6 @@ class GenerateContentRequest(BaseModel):
     generationConfig: Optional[GenerationConfig] = None
     safetySettings: Optional[List[SafetySetting]] = None
 
-
-class QuestionQuery(BaseModel):
-    questionId: str
-    questionType: Optional[str] = None
-    answerIds: Optional[List[str]] = None
-
 class AnswerSubmission(BaseModel):
     prompt: str
     answers: Any
@@ -212,11 +206,6 @@ async def save_answers(
     if not validateApiKey(db, key):
         raise HTTPException(status_code=400, detail="Invalid API Key")
 
-    # For now we just print the submitted answers. You can extend this to save to DB or do other processing.
-
-    print("Received answer submission:")
-    print(request.prompt, request.answers)
-
     prompt_hash = hashlib.sha256(request.prompt.encode()).hexdigest()
     response = " || ".join(request.answers)
 
@@ -239,4 +228,4 @@ async def get_answers(
     if not saved_q:
         raise HTTPException(status_code=404, detail="No answers found for the given prompt")
 
-    return {"prompt": saved_q.prompt, "answers": saved_q.response.split(" || ")}
+    return {"prompt": saved_q.prompt, "answers": saved_q.response}
