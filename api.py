@@ -223,3 +223,20 @@ async def save_answers(
     save_question_to_db(db, prompt_hash, request.prompt, response)
     
     return {"status": "success", "message": "Answers received"}
+
+@app.get("/answers")
+async def get_answers(
+    prompt: str = Query(..., description="The prompt text to retrieve answers for"),
+    key: str = Query(..., description="The API Key"),
+    db: Session = Depends(get_db)
+):
+    if not validateApiKey(db, key):
+        raise HTTPException(status_code=400, detail="Invalid API Key")
+
+    prompt_hash = hashlib.sha256(prompt.encode()).hexdigest()
+    saved_q = db.query(SavedQuestion).filter(SavedQuestion.prompt_hash == prompt_hash).first()
+
+    if not saved_q:
+        raise HTTPException(status_code=404, detail="No answers found for the given prompt")
+
+    return {"prompt": saved_q.prompt, "answers": saved_q.response.split(" || ")}
