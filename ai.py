@@ -170,5 +170,5 @@ async def process_gemini_request_stream(contents, key, model=default_model):
                     print("Failed to decode base64 image")
 
     async for chunk in generate_response_stream(prompt_text, key, SessionLocal(), files, model):
-        print(chunk, end="")
+        # print(chunk, end="")
         yield chunk

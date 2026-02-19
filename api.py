@@ -152,21 +152,7 @@ async def generate_content(
             # Save to DB (Overwrite)
             prompt_text, prompt_hash = get_prompt_hash(request.contents)
             
-            # Construct response object similar to non-streaming
-            response_data = {
-                "candidates": [
-                    {
-                        "content": {
-                            "parts": [{"text": full_response_text}],
-                            "role": "model"
-                        },
-                        "finishReason": "STOP",
-                        "index": 0,
-                        "safetyRatings": []
-                    }
-                ]
-            }
-            background_tasks.add_task(save_question_background, prompt_hash, prompt_text, response_data)
+            background_tasks.add_task(save_question_background, prompt_hash, prompt_text, full_response_text)
 
         except Exception as e:
             print(f"Stream Error: {e}")
@@ -194,7 +180,7 @@ async def ask_cached(
         if saved_q:
             try:
                 print("Using cached response")
-                text = saved_q.response["candidates"][0]["content"]["parts"][0]["text"]
+                text = saved_q.response
                 yield text
             except Exception:
                 yield ""
@@ -208,24 +194,27 @@ async def ask_cached(
                 # print(chunk, end="")
                 yield chunk
             
-            response_data = {
-                "candidates": [
-                    {
-                        "content": {
-                            "parts": [{"text": full_response_text}],
-                            "role": "model"
-                        },
-                        "finishReason": "STOP",
-                        "index": 0,
-                        "safetyRatings": []
-                    }
-                ]
-            }
-            
-            background_tasks.add_task(save_question_background, prompt_hash, prompt_text, response_data)
+            background_tasks.add_task(save_question_background, prompt_hash, prompt_text, full_response_text)
 
         except Exception as e:
             print(f"Stream Error: {e}")
             yield f"[ERROR: {str(e)}]"
 
     return StreamingResponse(stream_generator(), media_type="text/plain")
+
+@app.post("/answers")
+async def save_answers(
+    request: GenerateContentRequest,
+    background_tasks: BackgroundTasks,
+    key: str = Query(..., description="The API Key"),
+    db: Session = Depends(get_db)
+):  
+    if not validateApiKey(db, key):
+        raise HTTPException(status_code=400, detail="Invalid API Key")
+
+    # For now we just print the submitted answers. You can extend this to save to DB or do other processing.
+    print("Received answer submission:")
+    print(request.contents)
+
+    
+    return {"status": "success", "message": "Answers received"}
