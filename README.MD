@@ -41,11 +41,12 @@ The best completely fre&#x65;*&#xA0;*&#x61;nd open-source tool for in-browser ai
   - Provides a simple interface to use event listeners to interact with the api on the backend.
 - Sample Frontend Script ([frontend.js (all webpages)](tampermonkey/frontend.js))
 
-  - Sample script for how you can interact with the backend script from the client side. *Make sure to use tampermonkey functions to bypass CORS policies if you want to do this yourself*
+  - Sample script for how you can interact with the backend script from the client side. *Make sure to use tampermonkey functions to bypass CORS policies if you want to do this yourself*.
+  - This script will take the place of `uets.js` in the future.
 - Modified version of [Nyx's UETS](<https://greasyfork.org/en/scripts/550591-universal-educational-tool-suite>) [Universal Educational Tool Suite](tampermonkey/uets.js)
 
   - A modified version of Nyx's UETS that uses the custom backend 
-  - This is still being actively developed to add support for more sites
+  - This is no longer being actively developed to add support for more sites
 
 ### Upcoming Features
 
