@@ -2,24 +2,24 @@
 
 > The ultimate free, in-browser ai assistant
 
-The best completely fre&#x65;*&#xA0;*&#x61;nd open-source tool for in-browser ai assistance. Simply select text or images on a webpage, click the icon, and let the ai find the answers for you. This repository contains the full backend code (with an api), sample tampermonkey scripts (with a modified version of \[Nyx's Universal Educational Tool Suite]\(<https://greasyfork.org/en/scripts/550591-universal-educational-tool-suite>) that uses the backend), and support for docker.
+The best completely fre&#x65;*&#xA0;*&#x61;nd open-source tool for in-browser ai assistance. Simply select text or images on a webpage, click the icon, and let the ai find the answers for you. This repository contains the full backend code (with an api), sample tampermonkey scripts (with a modified version of [Nyx's Universal Educational Tool Suite](<https://greasyfork.org/en/scripts/550591-universal-educational-tool-suite>) that uses the backend), and support for docker.
 
 ## Table of Contents
 
-- \[Features]\(#features)
+- [Features](#features)
 
-  - \[Backend]\(#backend)
-  - \[User Scripts]\(#user-scripts)
-- \[Upcoming Features]\(#upcoming-features)
-- \[Setup]\(#setup)
+  - [Backend](#backend)
+  - [User Scripts](#user-scripts)
+- [Upcoming Features](#upcoming-features)
+- [Setup](#setup)
 
-  - \[Backend Setup]\(#backend-setup)
-  - \[Client Setup]\(#client-setup)
-- \[Usage]\(#usage)
+  - [Backend Setup](#backend-setup)
+  - [Client Setup](#client-setup)
+- [Usage](#usage)
 
-  - \[Save your API Key]\(#save-your-api-key)
-  - \[Sample `frontend.js` usage]\(#sample-frontendjs-usage)
-- \[Disclaimer (Skill Issue)]\(#disclaimer)
+  - [Save your API Key](#save-your-api-key)
+  - [Sample `frontend.js` usage](#sample-frontendjs-usage)
+- [Disclaimer (Skill Issue)](#disclaimer)
 
 ## Features
 
@@ -27,22 +27,22 @@ The best completely fre&#x65;*&#xA0;*&#x61;nd open-source tool for in-browser ai
 
 > Written with Python using FastAPI
 
-- **Gemini Integration**: The backend is built specifically for gemini, and uses the \`gemini\_webapi\` library (<https://pypi.org/project/gemini-webapi/>) to use gemini completely for free without api keys.
+- **Gemini Integration**: The backend is built specifically for gemini, and uses the `gemini_webapi` library (<https://pypi.org/project/gemini-webapi/>) to use gemini completely for free without api keys.
 - **Session Management**: Uses either a local SQLite database or cloud PostgreSQL database to store your own api keys (with custom usage limits, basic tracking features, and chat persistance), and cache questions and their responses (to speed up the process for users asking the same questions).
 - **Streaming Responses**: Supports real-time streaming from the AI to provide a smoother user experience.
 - **CORS Enabled**: Fully configured for cross-origin requests from browser-environments.
 
 ### User Scripts
 
-> These scripts STRICTLY rely on \[Tampermonkey]\(<https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo>)
+> These scripts STRICTLY rely on [Tampermonkey](<https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo>)
 
-- Backend Script (\[backend.js]\(tampermonkey/backend.js))
+- Backend Script ([backend.js](tampermonkey/backend.js))
 
   - Provides a simple interface to use event listeners to interact with the api on the backend.
-- Sample Frontend Script (\[frontend.js (all webpages)]\(tampermonkey/frontend.js))
+- Sample Frontend Script ([frontend.js (all webpages)](tampermonkey/frontend.js))
 
   - Sample script for how you can interact with the backend script from the client side. *Make sure to use tampermonkey functions to bypass CORS policies if you want to do this yourself*
-- Modified version of \[Nyx's UETS]\(<https://greasyfork.org/en/scripts/550591-universal-educational-tool-suite>) \[Universal Educational Tool Suite]\(tampermonkey/uets.js)
+- Modified version of [Nyx's UETS](<https://greasyfork.org/en/scripts/550591-universal-educational-tool-suite>) [Universal Educational Tool Suite](tampermonkey/uets.js)
 
   - A modified version of Nyx's UETS that uses the custom backend 
   - This is still being actively developed to add support for more sites
@@ -57,7 +57,7 @@ The best completely fre&#x65;*&#xA0;*&#x61;nd open-source tool for in-browser ai
 ### Backend Setup
 
 1. **Clone the repository**.
-2. **Install \[docker-compose]\(**[**https://docs.docker.com/compose/install/**](https://docs.docker.com/compose/install/)**)**
+2. **Install [docker-compose](**[**https://docs.docker.com/compose/install/**](https://docs.docker.com/compose/install/)**)**
 3. **Configure environement variables**: Create a `.env` file in the root directory:
 
 ```env
@@ -70,9 +70,9 @@ DATABASE_URL=your_database_url # leave blank if you want to use a local database
 GEMINI_COOKIE_PATH=/app/data/gemini_cookies # Im not sure if this is absolutely needed but it helps for readability
 ```
 
-> Refer to the instructions \[here]\(<https://github.com/HanaokaYuzu/Gemini-API?tab=readme-ov-file#authentication>) on how to find secure\_1psid and secure\_1psidts
+> Refer to the instructions [here](<https://github.com/HanaokaYuzu/Gemini-API?tab=readme-ov-file#authentication>) on how to find secure_1psid and secure_1psidts
 >
-> Read the \[disclaimer]\(#disclaimer) for more information on these cookies
+> Read the [disclaimer](#disclaimer) for more information on these cookies
 
 4. Execution
 
@@ -92,16 +92,16 @@ sudo startup.sh --refresh
 
 on every restart (this is assuming your home isnt down too often, if it is, remove the `--refresh` argument).
 
-> Both of these implementations rely on cloudflare tunnels to expose themselves to the internet, modify the code as needed to match your usecase (See the \[disclaimer]\(#usecase))
+> Both of these implementations rely on cloudflare tunnels to expose themselves to the internet, modify the code as needed to match your usecase (See the [disclaimer](#usecase))
 
 ### Client Setup
 
-1. Install and setup the \[Tampermonkey]\(<https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo>) extension (See full instructions \[here]\(<https://gist.github.com/jesterjunk/0344f1a7c1f67f52ffc716b17ee7f240>))
-2. Install the scripts in the \[tampermonkey]\(tampermonkey/) folder
+1. Install and setup the [Tampermonkey](<https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo>) extension (See full instructions [here](<https://gist.github.com/jesterjunk/0344f1a7c1f67f52ffc716b17ee7f240>))
+2. Install the scripts in the [tampermonkey](tampermonkey/) folder
 
 - `backend.js` (Required, does not need modification)
 - `frontend.js` (Optional, works on all sites but has worse UX)
-- `uets.js` (Optional, modified version of \[Nyx's UETS]\(<https://greasyfork.org/en/scripts/550591-universal-educational-tool-suite>))
+- `uets.js` (Optional, modified version of [Nyx's UETS](<https://greasyfork.org/en/scripts/550591-universal-educational-tool-suite>))
 
 3. Configure your `serverUrl` in `uets.js` and `apiUrl` in `backend.js`
 
@@ -125,13 +125,13 @@ on every restart (this is assuming your home isnt down too often, if it is, remo
 
 ### Cookies
 
-The code will automatically update the SECURE\_1PSID and SECURE\_1PSIDTS values if left running (and will store the values of them every 5 minutes), but if you open gemini logged into the same account that the script is running, theres a good chance it will desync these values, and you might have to edit the env to change them.
+The code will automatically update the SECURE_1PSID and SECURE_1PSIDTS values if left running (and will store the values of them every 5 minutes), but if you open gemini logged into the same account that the script is running, theres a good chance it will desync these values, and you might have to edit the env to change them.
 
 The script shouldnt have any cookie errors as long as you dont open the gemini webpage.
 
 ### Timing
 
-Sometimes gemini\_webapi takes a significantly longer time than usual to generate a response, the cause of this is still unknown. Only fix is to increase the `timeout` in the `client.init()` function in \[ai.py]\(ai.py).
+Sometimes gemini_webapi takes a significantly longer time than usual to generate a response, the cause of this is still unknown. Only fix is to increase the `timeout` in the `client.init()` function in [ai.py](ai.py).
 
 ### Usecase
 
