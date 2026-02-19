@@ -30,7 +30,7 @@ async def ensure_initialized():
     global quiz_gem
     global initialized
     if not initialized:
-        await client.init(timeout=30, auto_close=True, close_delay=300, auto_refresh=True, refresh_interval=60 * 15)
+        await client.init(timeout=30, auto_close=True, close_delay=60 * 60, auto_refresh=True, refresh_interval=60 * 15)
         await client.fetch_gems(include_hidden=False, language="en")
         gems = client.gems
         # Try to get the specific gem, fallback to default if not found
