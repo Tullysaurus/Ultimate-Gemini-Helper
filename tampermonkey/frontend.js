@@ -313,10 +313,19 @@
         const explanationRegex = /Explanation:\s*(.+)/is;
         const answerMatch = rawText.match(answerRegex);
         const explanationMatch = rawText.match(explanationRegex);
-        const answer = answerMatch ? formatRichText(answerMatch[1].trim()) : (rawText.length < 100 ? "Analyzing..." : "Analysis Complete");
+        
+        let answerHtml = "";
+        if (answerMatch) {
+            const answers = answerMatch[1].trim().split(" || ");
+            answerHtml = answers.map(ans => `<div class="ugh-answer-box">${formatRichText(ans.trim())}</div>`).join("");
+        } else {
+            const fallbackText = rawText.length < 100 ? "Analyzing..." : "Analysis Complete";
+            answerHtml = `<div class="ugh-answer-box">${fallbackText}</div>`;
+        }
+
         const explanation = explanationMatch ? formatRichText(explanationMatch[1].trim()) : formatRichText(rawText.replace(answerRegex, '').trim());
 
-        const html = `<div class="ugh-answer-box">${answer}</div><div class="ugh-explanation-text">${explanation}</div>`;
+        const html = `${answerHtml}<div class="ugh-explanation-text">${explanation}</div>`;
         showResponsePopup(html, false);
     };
 
