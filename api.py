@@ -124,7 +124,7 @@ def validateApiKey(db: Session, key: str):
 
 
 @app.post("/ai")
-async def generate_content(
+def generate_content(
     request: GenerateContentRequest, 
     background_tasks: BackgroundTasks,
     key: str = Query(..., description="The API Key"), # catches ?key=... from JS
@@ -135,10 +135,10 @@ async def generate_content(
     if not validateApiKey(db, key):
         raise HTTPException(status_code=400, detail="Invalid API Key")
 
-    async def stream_generator():
+    def stream_generator():
         full_response_text = ""
         try:
-            async for chunk in process_gemini_request_stream(request.contents, key):
+            for chunk in process_gemini_request_stream(request.contents, key):
                 full_response_text += chunk
                 # print(chunk, end="")
                 yield chunk
@@ -155,7 +155,7 @@ async def generate_content(
     return StreamingResponse(stream_generator(), media_type="text/plain")
 
 @app.post("/ask")
-async def ask_cached(
+def ask_cached(
     request: GenerateContentRequest,
     background_tasks: BackgroundTasks,
     key: str = Query(..., description="The API Key"),
@@ -165,7 +165,7 @@ async def ask_cached(
     if not validateApiKey(db, key):
         raise HTTPException(status_code=400, detail="Invalid API Key")
 
-    async def stream_generator():
+    def stream_generator():
         prompt_text, prompt_hash = get_prompt_hash(request.contents)
         
         # Check DB
@@ -183,7 +183,7 @@ async def ask_cached(
         # Not cached
         full_response_text = ""
         try:
-            async for chunk in process_gemini_request_stream(request.contents, key):
+            for chunk in process_gemini_request_stream(request.contents, key):
                 full_response_text += chunk
                 # print(chunk, end="")
                 yield chunk
