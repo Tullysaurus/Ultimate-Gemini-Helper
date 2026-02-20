@@ -965,6 +965,53 @@
         </div>
     `;
 
+    // Draggable Logic
+    const header = popup.querySelector('.ugh-popup-header');
+    header.style.cursor = 'move';
+
+    const savedPos = GM_getValue("UGH_POPUP_POS", null);
+    if (savedPos) {
+        popup.style.right = 'auto';
+        popup.style.left = savedPos.left;
+        popup.style.top = savedPos.top;
+        popup.style.animation = 'none';
+    }
+
+    let isDragging = false;
+    let startX, startY, initialLeft, initialTop;
+
+    header.addEventListener('mousedown', (e) => {
+        if (e.target.closest('.ugh-popup-close')) return;
+        isDragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        const rect = popup.getBoundingClientRect();
+        initialLeft = rect.left;
+        initialTop = rect.top;
+
+        popup.style.right = 'auto';
+        popup.style.animation = 'none';
+        popup.style.transform = 'none';
+
+        const onMouseMove = (e) => {
+            if (!isDragging) return;
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+            popup.style.left = `${initialLeft + dx}px`;
+            popup.style.top = `${initialTop + dy}px`;
+        };
+
+        const onMouseUp = () => {
+            isDragging = false;
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+            GM_setValue("UGH_POPUP_POS", { left: popup.style.left, top: popup.style.top });
+        };
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    });
+
     popup.querySelector('.ugh-popup-close').onclick = () => {
         popup.remove();
         sharedState.geminiPopup = null;
