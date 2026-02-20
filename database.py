@@ -3,7 +3,7 @@ from sqlalchemy.orm import sessionmaker
 from schema import Base
 import os
 
-SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./uets_database.db")
+SQLALCHEMY_DATABASE_URL =  "sqlite:///./uets_database.db"# os.getenv("DATABASE_URL", "sqlite:///./uets_database.db")
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL #, connect_args={"check_same_thread": False}
@@ -19,3 +19,7 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+if __name__ == "__main__":
+    init_db()
