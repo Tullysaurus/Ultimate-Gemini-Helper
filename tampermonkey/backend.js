@@ -33,7 +33,7 @@
     // === UTILITIES ===
     const getApiKey = () => GM_getValue(API_KEY_STORAGE, "");
     const setApiKey = (key) => GM_setValue(API_KEY_STORAGE, key.trim());
-    const getHostname = () => GM_getValue(HOSTNAME_STORAGE, "https://ugh.tully-dev.com");
+    const getHostname = () => GM_getValue(HOSTNAME_STORAGE, "https://ugh.tully.sh");
     const setHostname = (hostname) => GM_setValue(HOSTNAME_STORAGE, hostname.trim());
 
     /**
