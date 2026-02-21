@@ -17,7 +17,7 @@ RUN useradd -m john
 USER john
 
 
-RUN sed -i 's/sdk\.vercel\.ai/play\.vercel\.ai/g' .venv/lib/python3.11/site-packages/vercel_ai.py
+CMD sed -i 's/sdk\.vercel\.ai/play\.vercel\.ai/g' .venv/lib/python3.11/site-packages/vercel_ai.py
 
 # Use --proxy-headers so FastAPI knows it's behind a tunnel
 CMD ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]
