@@ -78,38 +78,39 @@ def save_history(key, db, messages):
 # --- Core Logic ---
 
 async def generate_response_stream(prompt_text: str, key, db, files: list[bytes], model: str = DEFAULT_MODEL):
-    """
-    Sends text and images to OpenRouter and streams the response.
-    """
-    data = get_key_in_db(key, db)
-    
-    # Check for session expiration (OpenRouter doesn't 'expire', but we reset history for privacy/logic)
-    if data and data.lastUsed:
-        if datetime.now(UTC) - data.lastUsed.replace(tzinfo=UTC) > timedelta(minutes=5):
-            print("[+] Session expired. Starting fresh history.")
-            history = []
-        else:
-            history = get_history(key, db)
+
+    # Ensure history is always a list of OBJECTS, not strings
+    raw_history = get_history(key, db)
+    history = []
+    for msg in raw_history:
+        if isinstance(msg, dict) and "role" in msg and "content" in msg:
+            history.append(msg)
+        elif isinstance(msg, str):
+            # If it's a legacy string, wrap it in a user object
+            history.append({"role": "user", "content": msg})
+
+    # Prepare the current message content
+    # If there are no files, use a simple string (most reliable)
+    # If there are files, use the multi-part list format
+    if not files:
+        current_content = prompt_text
     else:
-        history = []
+        current_content = [{"type": "text", "text": prompt_text}]
+        for image_bytes in files:
+            base64_image = base64.b64encode(image_bytes).decode('utf-8')
+            current_content.append({
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:image/jpeg;base64,{base64_image}"
+                }
+            })
 
-    # Construct the message content
-    content = [{"type": "text", "text": prompt_text}]
-    
-    # OpenRouter handles base64 images directly in the payload
-    for image_bytes in files:
-        base64_image = base64.b64encode(image_bytes).decode('utf-8')
-        content.append({
-            "type": "image_url",
-            "image_url": {
-                "url": f"data:image/jpeg;base64,{base64_image}"
-            }
-        })
-
-    # Prepare messages payload
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    # Build the final message list
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT}
+    ]
     messages.extend(history)
-    messages.append({"role": "user", "content": content})
+    messages.append({"role": "user", "content": current_content})
 
     try:
         response = await client.chat.completions.create(
@@ -120,13 +121,13 @@ async def generate_response_stream(prompt_text: str, key, db, files: list[bytes]
 
         full_response_text = ""
         async for chunk in response:
-            delta = chunk.choices[0].delta.content
-            if delta:
+            if chunk.choices and chunk.choices[0].delta.content:
+                delta = chunk.choices[0].delta.content
                 full_response_text += delta
                 yield delta
 
-        # Update history
-        history.append({"role": "user", "content": prompt_text}) # Save text only for history
+        # Update history with clean objects
+        history.append({"role": "user", "content": prompt_text})
         history.append({"role": "assistant", "content": full_response_text})
         save_history(key, db, history)
 
