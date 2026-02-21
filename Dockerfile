@@ -5,6 +5,9 @@ WORKDIR /app
 # Install system dependencies (needed for SQLite/SQLAlchemy)
 RUN apt-get update && apt-get install -y \
     sqlite3 \
+    build-essential \
+    gcc \
+    python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
