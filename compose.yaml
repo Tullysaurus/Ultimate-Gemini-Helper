@@ -5,11 +5,8 @@ services:
     restart: unless-stopped
     environment:
       - DATABASE_URL=${DATABASE_URL}
-      - GEMINI_COOKIE_PATH=/app/data/gemini_cookies/
     volumes:
       - ./data:/app/data
-      # Maps local folder to the path used by the environment variable
-      - ./gemini_cookies:/app/data/gemini_cookies
     networks:
       - tunnel_net
 
