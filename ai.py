@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, UTC
 
 from dotenv import load_dotenv
 from fastapi import HTTPException
-from openai import AsyncOpenAI  # Use OpenAI's client for OpenRouter
+from openai import AsyncOpenAI
 
 from database import get_db, SessionLocal
 from schema import APIKeyHash
@@ -16,19 +16,20 @@ load_dotenv()
 
 # --- Configuration ---
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-# Default model: google/gemini-2.0-flash-001 or similar via OpenRouter
-DEFAULT_MODEL = "stepfun/step-3.5-flash:free" 
+
+# Define our two models
+TEXT_MODEL = "stepfun/step-3.5-flash:free"
+VISION_MODEL = "google/gemini-2.0-flash-001"
 
 if not OPENROUTER_API_KEY:
     raise HTTPException(status_code=500, detail="Server Error: Missing OpenRouter API Key.")
 
-# Initialize OpenRouter Client
 client = AsyncOpenAI(
     base_url="https://openrouter.ai/api/v1",
     api_key=OPENROUTER_API_KEY,
     default_headers={
-        "HTTP-Referer": "https://tully.sh", # Optional, for OpenRouter rankings
-        "X-Title": "Educational AI Assistant",   # Optional
+        "HTTP-Referer": "https://tully.sh",
+        "X-Title": "Educational AI Assistant",
     }
 )
 
@@ -54,7 +55,6 @@ Explanation: [Rich Text Explanation]
 """
 
 # --- Database Helpers ---
-
 def get_key_in_db(key, db):
     hashed_key = hashlib.sha256(key.encode()).hexdigest()
     return db.query(APIKeyHash).filter(APIKeyHash.key_hash == hashed_key).first()
@@ -71,50 +71,53 @@ def get_history(key, db):
 def save_history(key, db, messages):
     data = get_key_in_db(key, db)
     if data:
-        # We only keep the last few messages to stay within context limits
         data.chat_metadata = json.dumps(messages[-10:]) 
         db.commit()
 
 # --- Core Logic ---
 
-async def generate_response_stream(prompt_text: str, key, db, files: list[bytes], model: str = DEFAULT_MODEL):
+async def generate_response_stream(prompt_text: str, key, db, files: list[bytes], model: str = None):
+    # 1. Automatic Model Selection Logic
+    # If no model was passed explicitly, we decide based on files
+    if model is None or model == TEXT_MODEL:
+        selected_model = VISION_MODEL if len(files) > 0 else TEXT_MODEL
+    else:
+        selected_model = model
 
-    # Ensure history is always a list of OBJECTS, not strings
+    # 2. History Formatting
     raw_history = get_history(key, db)
     history = []
     for msg in raw_history:
-        if isinstance(msg, dict) and "role" in msg and "content" in msg:
-            history.append(msg)
-        elif isinstance(msg, str):
-            # If it's a legacy string, wrap it in a user object
-            history.append({"role": "user", "content": msg})
+        if isinstance(msg, dict) and "role" in msg:
+            # We strip old images from history to save tokens/avoid 400 errors on text models
+            if isinstance(msg["content"], list):
+                # Extract only the text part of the old message
+                text_content = next((item["text"] for item in msg["content"] if item["type"] == "text"), "")
+                history.append({"role": msg["role"], "content": text_content})
+            else:
+                history.append(msg)
 
-    # Prepare the current message content
-    # If there are no files, use a simple string (most reliable)
-    # If there are files, use the multi-part list format
+    # 3. Content Preparation
     if not files:
+        # Simple text for the free model
         current_content = prompt_text
     else:
-        current_content = [{"type": "text", "text": prompt_text}]
+        # Structured object for the Vision model
+        current_content = [{"type": "text", "text": prompt_text or "Analyze the attached image."}]
         for image_bytes in files:
             base64_image = base64.b64encode(image_bytes).decode('utf-8')
             current_content.append({
                 "type": "image_url",
-                "image_url": {
-                    "url": f"data:image/jpeg;base64,{base64_image}"
-                }
+                "image_url": { "url": f"data:image/jpeg;base64,{base64_image}" }
             })
 
-    # Build the final message list
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT}
-    ]
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     messages.extend(history)
     messages.append({"role": "user", "content": current_content})
 
     try:
         response = await client.chat.completions.create(
-            model=model,
+            model=selected_model,
             messages=messages,
             stream=True
         )
@@ -126,19 +129,16 @@ async def generate_response_stream(prompt_text: str, key, db, files: list[bytes]
                 full_response_text += delta
                 yield delta
 
-        # Update history with clean objects
+        # 4. Save History (Save prompt_text as string to keep DB clean)
         history.append({"role": "user", "content": prompt_text})
         history.append({"role": "assistant", "content": full_response_text})
         save_history(key, db, history)
 
     except Exception as e:
-        print(f"[!] OpenRouter Error: {e}")
+        print(f"[!] OpenRouter Error using {selected_model}: {e}")
         yield f"Error: {str(e)}"
 
-async def process_gemini_request_stream(contents, key, model=DEFAULT_MODEL):
-    """
-    Adapter to convert your incoming 'contents' structure to the generator.
-    """
+async def process_gemini_request_stream(contents, key, model=None):
     prompt_text = ""
     files = []
     
@@ -146,10 +146,8 @@ async def process_gemini_request_stream(contents, key, model=DEFAULT_MODEL):
         for part in content.parts:
             if hasattr(part, 'text') and part.text:
                 prompt_text += part.text + "\n"
-            
             if hasattr(part, 'inline_data') and part.inline_data:
                 try:
-                    # Assuming part.inline_data.data is the base64 string or bytes
                     image_data = base64.b64decode(part.inline_data.data)
                     files.append(image_data)
                 except Exception as e:
