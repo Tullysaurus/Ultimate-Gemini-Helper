@@ -5,7 +5,6 @@ import hashlib
 import tempfile
 from gemini_webapi import GeminiClient
 from gemini_webapi.constants import Model
-import vercel_ai
 
 from dotenv import load_dotenv
 from fastapi import HTTPException
@@ -66,6 +65,8 @@ SECURE_1PSIDTS = os.getenv("SECURE_1PSIDTS")
 quiz_gem = None
 initialized = False
 client = GeminiClient(SECURE_1PSID, SECURE_1PSIDTS, proxy=None)
+
+import vercel_ai
 vercel_client = vercel_ai.Client()
 
 async def ensure_initialized():
