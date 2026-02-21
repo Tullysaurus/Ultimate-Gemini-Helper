@@ -17,7 +17,7 @@ load_dotenv()
 # --- Configuration ---
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 # Default model: google/gemini-2.0-flash-001 or similar via OpenRouter
-DEFAULT_MODEL = "google/gemini-2.0-flash-001" 
+DEFAULT_MODEL = "google/gemini-2.5-flash" 
 
 if not OPENROUTER_API_KEY:
     raise HTTPException(status_code=500, detail="Server Error: Missing OpenRouter API Key.")
