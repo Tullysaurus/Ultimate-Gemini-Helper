@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.14-slim
 
 WORKDIR /app
 
@@ -15,9 +15,6 @@ COPY . .
 # Run as a non-privileged user for security
 RUN useradd -m john
 USER john
-
-
-CMD sed -i 's/sdk\.vercel\.ai/play\.vercel\.ai/g' .venv/lib/python3.11/site-packages/vercel_ai.py
 
 # Use --proxy-headers so FastAPI knows it's behind a tunnel
 CMD ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]

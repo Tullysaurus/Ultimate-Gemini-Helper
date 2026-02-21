@@ -54,20 +54,17 @@ Explanation: [Rich Text Explanation]
 
 
 default_model = Model.G_3_0_FLASH
-vercel_default_model = "openai:gpt-3.5-turbo"
+# vercel_default_model = "openai:gpt-3.5-turbo"
 
 SECURE_1PSID = os.getenv("SECURE_1PSID")
 SECURE_1PSIDTS = os.getenv("SECURE_1PSIDTS")
 
-# if not SECURE_1PSID or not SECURE_1PSIDTS:
-#     raise HTTPException(status_code=500, detail="Server Error: Missing Gemini Cookies in environment variables.")
+if not SECURE_1PSID or not SECURE_1PSIDTS:
+    raise HTTPException(status_code=500, detail="Server Error: Missing Gemini Cookies in environment variables.")
 
 quiz_gem = None
 initialized = False
 client = GeminiClient(SECURE_1PSID, SECURE_1PSIDTS, proxy=None)
-
-import vercel_ai
-vercel_client = vercel_ai.Client()
 
 async def ensure_initialized():
     global quiz_gem
@@ -145,29 +142,29 @@ def save_metadata(key, db, metadata):
         db.commit()
 
 
-def run_vercel_prompt(prompt_text):
-    messages = [
-        {"role": "system", "content": prompt},
-        {"role": "user", "content": prompt_text}
-    ]
-    params = {
-        "maxLength": 1000
-    }
+# def run_vercel_prompt(prompt_text):
+#     messages = [
+#         {"role": "system", "content": prompt},
+#         {"role": "user", "content": prompt_text}
+#     ]
+#     params = {
+#         "maxLength": 1000
+#     }
 
-    for chunk in vercel_client.chat(vercel_default_model, messages, params):
-        yield chunk
+#     for chunk in vercel_client.chat(vercel_default_model, messages, params):
+#         yield chunk
 
 
 async def generate_response_stream(prompt_text: str, key, db, files: list[bytes], model : str=default_model):
     await ensure_initialized()
 
 
-    if files and len(files) == 0:
-        print("[+] Skipping using gemini, using vercel instead")
-        for chunk in run_vercel_prompt(prompt_text):
-            yield chunk
+    # if files and len(files) == 0:
+    #     print("[+] Skipping using gemini, using vercel instead")
+    #     for chunk in run_vercel_prompt(prompt_text):
+    #         yield chunk
 
-        return
+    #     return
 
     data = get_key_in_db(key, db)
     if data:
@@ -199,8 +196,8 @@ async def generate_response_stream(prompt_text: str, key, db, files: list[bytes]
     except Exception as e:
 
         print(f"[+] Warning: Image generation failed ({e}). Falling back to text-only.")
-        async for chunk in run_vercel_prompt(prompt_text):
-            yield chunk
+        # async for chunk in run_vercel_prompt(prompt_text):
+        #     yield chunk
 
     finally:
 
