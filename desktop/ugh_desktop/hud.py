@@ -1,7 +1,8 @@
 """The heads-up display: a click-through, non-activating, always-on-top card in a screen corner.
 
 Styled like the userscript's response popup (white card, grey header, blue answer boxes).
-It never takes focus or mouse input; everything is driven by global hotkeys.
+It never takes focus or mouse input; everything is driven by the global menu key.
+The answer boxes are pinned at the top; only the explanation below them scrolls.
 """
 
 from __future__ import annotations
@@ -16,25 +17,50 @@ FONT_FAMILY = "Roboto, 'Segoe UI', Arial, sans-serif"
 BODY_PT = 10.5
 ANSWER_PT = 14
 
-CARD_QSS = f"""
+def _rgba(hex_rgb: str, alpha: float) -> str:
+    r, g, b = (int(hex_rgb[i:i + 2], 16) for i in (1, 3, 5))
+    return f"rgba({r}, {g}, {b}, {round(max(0.0, min(1.0, alpha)) * 255)})"
+
+
+def card_qss(alpha: float) -> str:
+    """Panel stylesheet; backgrounds and borders use `alpha`, text stays solid."""
+    border = _rgba("#dadce0", min(1.0, alpha + 0.2))
+    return f"""
 #card {{
-    background: #ffffff; border: 1px solid #dadce0; border-radius: 16px;
+    background: {_rgba("#ffffff", alpha)}; border: 1px solid {border}; border-radius: 16px;
 }}
 #header {{
-    background: #f8f9fa; border-bottom: 1px solid #dadce0;
+    background: {_rgba("#f8f9fa", alpha)}; border-bottom: 1px solid {border};
     border-top-left-radius: 16px; border-top-right-radius: 16px;
 }}
 #title {{ color: #5f6368; font-family: {FONT_FAMILY}; font-size: 10.5pt; font-weight: 500; }}
 #status {{ color: #5f6368; font-family: {FONT_FAMILY}; font-size: 9pt; }}
 #footer {{
-    background: #f8f9fa; border-top: 1px solid #dadce0;
+    background: {_rgba("#f8f9fa", alpha)}; border-top: 1px solid {border};
     border-bottom-left-radius: 16px; border-bottom-right-radius: 16px;
 }}
 #hints {{ color: #80868b; font-family: {FONT_FAMILY}; font-size: 8pt; }}
+#answer {{ border-bottom: 1px solid {_rgba("#f1f3f4", alpha)}; }}
 QTextBrowser {{
     background: transparent; border: none; color: #3c4043;
     font-family: {FONT_FAMILY}; font-size: {BODY_PT}pt;
 }}
+"""
+
+
+
+def menu_qss(alpha: float) -> str:
+    return f"""
+#menucard {{
+    background: {_rgba("#ffffff", alpha)}; border: 1px solid {_rgba("#dadce0", min(1.0, alpha + 0.2))};
+    border-radius: 12px;
+}}
+#menutitle {{ color: #5f6368; font-family: {FONT_FAMILY}; font-size: 9pt; font-weight: 500; }}
+#menukey {{
+    background: {_rgba("#e8f0fe", alpha)}; color: #1967d2; border-radius: 6px; padding: 2px 0;
+    font-family: {FONT_FAMILY}; font-size: 10.5pt; font-weight: 700;
+}}
+#menulabel {{ color: #3c4043; font-family: {FONT_FAMILY}; font-size: 10.5pt; }}
 """
 
 
@@ -93,7 +119,6 @@ class Hud(QWidget):
         super().__init__(None, flags)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
-        self.setStyleSheet(CARD_QSS)
         self.cfg = hud_cfg
         self._math_cache: dict[tuple, tuple[str, int, int]] = {}
         self._math_counter = 0
@@ -125,12 +150,20 @@ class Hud(QWidget):
         hl.addWidget(self.spinner)
         layout.addWidget(header)
 
+        # Answer boxes: always fully visible, never scrolled.
+        self.answer = MathBrowser(card)
+        self.answer.setObjectName("answer")
+        # Explanation (and status/error messages): scrolled from the menu.
         self.body = MathBrowser(card)
-        self.body.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)  # scrolled by hotkeys
-        self.body.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.body.setOpenLinks(False)
-        self.body.document().setDocumentMargin(16)
-        layout.addWidget(self.body)
+        for browser in (self.answer, self.body):
+            browser.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            browser.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            browser.setOpenLinks(False)
+            browser.document().setDocumentMargin(16)
+        self.answer.images = self.body.images  # math images are shared
+        self.answer.hide()
+        layout.addWidget(self.answer)
+        layout.addWidget(self.body, 1)
 
         footer = QFrame(card)
         footer.setObjectName("footer")
@@ -156,9 +189,14 @@ class Hud(QWidget):
 
     def apply_config(self, hud_cfg: dict) -> None:
         self.cfg = hud_cfg
-        self.setWindowOpacity(max(0.2, min(1.0, float(hud_cfg.get("opacity", 0.96)))))
+        alpha = self.background_alpha()
+        formatting.set_background_alpha(alpha)
+        self.setStyleSheet(card_qss(alpha))
         self.setFixedWidth(int(hud_cfg.get("width", 420)))
         self._relayout()
+
+    def background_alpha(self) -> float:
+        return max(0.0, min(1.0, float(self.cfg.get("background_opacity", 0.6))))
 
     def showEvent(self, event) -> None:  # noqa: N802
         super().showEvent(event)
@@ -166,14 +204,26 @@ class Hud(QWidget):
         winapi.apply_overlay_styles(hwnd, click_through=True)
         winapi.raise_topmost(hwnd)
 
+    @staticmethod
+    def _doc_height(browser: QTextBrowser, width: int) -> int:
+        doc = browser.document()
+        doc.setTextWidth(width)
+        return int(doc.size().height()) + 1
+
     def _relayout(self) -> None:
         screen = QGuiApplication.primaryScreen().availableGeometry()
-        doc = self.body.document()
-        doc.setTextWidth(self.width() - 2)
-        content_h = int(doc.size().height())
+        text_w = self.width() - 2
         chrome_h = self._header.sizeHint().height() + self._footer.sizeHint().height() + 2
         max_h = int(screen.height() * float(self.cfg.get("max_height_ratio", 0.7)))
-        height = max(120, min(max_h, content_h + chrome_h))
+
+        answer_h = 0
+        if not self.answer.isHidden():
+            # Pinned, so it has to fit; leave at least a little room for the explanation.
+            answer_h = min(self._doc_height(self.answer, text_w), max(60, max_h - chrome_h - 60))
+            self.answer.setFixedHeight(answer_h)
+        body_h = self._doc_height(self.body, text_w) if self.body.toPlainText().strip() else 0
+
+        height = max(120, min(max_h, answer_h + body_h + chrome_h))
         self.setFixedHeight(height)
 
         margin = int(self.cfg.get("margin", 20))
@@ -193,7 +243,7 @@ class Hud(QWidget):
             png = formatting.render_tex_png(tex, display, color, font_pt, max(2.0, scale))
             if png is None:
                 src = (r"\[" + tex + r"\]") if display else (r"\(" + tex + r"\)")
-                return f'<span style="{formatting.CODE_STYLE}">{formatting.html.escape(src)}</span>'
+                return f'<span style="{formatting.code_style()}">{formatting.html.escape(src)}</span>'
             image = QImage.fromData(png, "PNG")
             self._math_counter += 1
             url = f"ughmath://{self._math_counter}.png"
@@ -204,13 +254,35 @@ class Hud(QWidget):
         valign = "" if display else ' style="vertical-align: middle"'
         return f'<img src="{url}" width="{w}" height="{h}"{valign}>'
 
-    def _set_html(self, html: str, keep_scroll: bool) -> None:
+    @staticmethod
+    def _set_vertical_margins(browser: QTextBrowser, top: int, bottom: int) -> None:
+        root = browser.document().rootFrame()
+        fmt = root.frameFormat()
+        fmt.setTopMargin(top)
+        fmt.setBottomMargin(bottom)
+        root.setFrameFormat(fmt)
+
+    def _set_html(self, html: str, keep_scroll: bool, answer_html: str | None = None) -> None:
+        """Explanation/message into the scrolling body; answer boxes (if any) into the pinned area."""
         bar = self.body.verticalScrollBar()
         pos = bar.value()
+        if answer_html is None:
+            self.answer.hide()
+            self.answer.clear()
+        else:
+            self.answer.setHtml(answer_html)
+            self._set_vertical_margins(self.answer, 16, 6)
+            self.answer.show()
         self.body.setHtml(html)
+        self._set_vertical_margins(self.body, 6 if answer_html is not None else 16, 16)
         if keep_scroll:
             bar.setValue(pos)
         self._relayout()
+
+    def clear(self) -> None:
+        self.answer.clear()
+        self.answer.hide()
+        self.body.clear()
 
     def show_loading(self, status: str) -> None:
         self.status.setText(status)
@@ -226,7 +298,8 @@ class Hud(QWidget):
             self.spinner.stop()
         else:
             self.spinner.start()
-        self._set_html(formatting.format_answer(raw, self._add_math), keep_scroll=True)
+        answer_html, explanation_html = formatting.format_answer(raw, self._add_math)
+        self._set_html(explanation_html, keep_scroll=True, answer_html=answer_html)
 
     def show_error(self, message: str) -> None:
         self.body.setProperty("is_message", True)
@@ -241,5 +314,77 @@ class Hud(QWidget):
         self._set_html(formatting.format_message(message, "#5f6368"), keep_scroll=False)
 
     def scroll_by(self, pages: float) -> None:
+        """Scrolls the explanation only; the answer boxes stay put."""
         bar = self.body.verticalScrollBar()
         bar.setValue(bar.value() + int(self.body.viewport().height() * pages))
+
+
+class ActionMenu(QWidget):
+    """The menu-key popup: a small numbered list next to the HUD. Click-through, never takes focus."""
+
+    def __init__(self):
+        flags = (Qt.WindowType.FramelessWindowHint
+                 | Qt.WindowType.WindowStaysOnTopHint
+                 | Qt.WindowType.Tool
+                 | Qt.WindowType.WindowDoesNotAcceptFocus
+                 | Qt.WindowType.WindowTransparentForInput)
+        super().__init__(None, flags)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+
+        card = QFrame(self)
+        card.setObjectName("menucard")
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.addWidget(card)
+        self._layout = QVBoxLayout(card)
+        self._layout.setContentsMargins(14, 10, 14, 12)
+        self._layout.setSpacing(6)
+        self._rows: list[QWidget] = []
+
+    def set_items(self, title: str, items: list[tuple[str, str]]) -> None:
+        for row in self._rows:
+            self._layout.removeWidget(row)
+            row.deleteLater()
+        self._rows.clear()
+        heading = QLabel(title)
+        heading.setObjectName("menutitle")
+        self._layout.addWidget(heading)
+        self._rows.append(heading)
+        for key, label in items:
+            row = QWidget()
+            rl = QHBoxLayout(row)
+            rl.setContentsMargins(0, 0, 0, 0)
+            rl.setSpacing(10)
+            k = QLabel(key)
+            k.setObjectName("menukey")
+            k.setFixedWidth(22)
+            k.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            t = QLabel(label)
+            t.setObjectName("menulabel")
+            rl.addWidget(k)
+            rl.addWidget(t, 1)
+            self._layout.addWidget(row)
+            self._rows.append(row)
+        self.adjustSize()
+
+    def show_at(self, hud: Hud) -> None:
+        """Beside the HUD (or in its corner when the HUD is hidden)."""
+        self.setStyleSheet(menu_qss(hud.background_alpha()))
+        self.adjustSize()
+        screen = QGuiApplication.primaryScreen().availableGeometry()
+        margin = int(hud.cfg.get("margin", 20))
+        corner = hud.cfg.get("corner", "top-right")
+        left = "left" in corner
+        if hud.isVisible():
+            x = hud.x() + hud.width() + 10 if left else hud.x() - self.width() - 10
+        else:
+            x = screen.left() + margin if left else screen.right() - self.width() - margin + 1
+        y = screen.top() + margin if "top" in corner else screen.bottom() - self.height() - margin + 1
+        self.move(x, y)
+        self.show()
+        winapi.raise_topmost(int(self.winId()))
+
+    def showEvent(self, event) -> None:  # noqa: N802
+        super().showEvent(event)
+        winapi.apply_overlay_styles(int(self.winId()), click_through=True)

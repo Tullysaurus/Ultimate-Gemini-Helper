@@ -1,58 +1,127 @@
-"""Global hotkeys via the `keyboard` package, forwarded to the Qt thread as signals.
+"""Global keys via one low-level `keyboard` hook, forwarded to the Qt thread as signals.
 
-Hotkeys are registered with suppress=True: the key combination is consumed and
-doesn't also reach the app you're in, so it can't trigger that app's shortcuts.
+Everything goes through a single menu key (F9 by default):
+
+  * The menu key itself is always consumed (down, auto-repeat and up), so it
+    never reaches the app you're in.
+  * While the menu is open, digit keys (top row and numpad) are consumed too and
+    become menu choices. While it's closed, digits pass through untouched.
+  * Esc is consumed while the menu or the region selector is open.
+
+The hook runs on keyboard's hook thread and must decide synchronously whether
+to block each key, so the open/closed state lives here rather than on the Qt
+thread (a fast "F9 then 1" can't slip a digit through before Qt catches up).
 """
 
 from __future__ import annotations
 
+import threading
+
 import keyboard
 from PyQt6.QtCore import QObject, pyqtSignal
 
+DIGITS = frozenset("0123456789")
+
 
 class HotkeyManager(QObject):
-    triggered = pyqtSignal(str)  # action name; emitted from keyboard's hook thread, delivered on the Qt thread
+    # All emitted from keyboard's hook thread, delivered on the Qt thread (queued, in order).
+    menu_changed = pyqtSignal(bool)  # menu opened (True) / closed (False)
+    choice = pyqtSignal(str, bool)   # digit pressed while the menu was open, is_repeat
+    escape = pyqtSignal()            # Esc while the region selector is open
 
     def __init__(self) -> None:
         super().__init__()
-        self._handles: dict[str, object] = {}
-        self._temporary: dict[str, object] = {}
+        self._lock = threading.Lock()
+        self._remove_hook = None
+        self._menu_codes: frozenset[int] = frozenset()
+        self._sticky: frozenset[str] = frozenset()  # choices that keep the menu open (e.g. scrolling)
+        self._menu_open = False
+        self._grab_escape = False
+        self._held: set[int] = set()  # scan codes whose key-down we consumed: consume their repeats/up too
 
-    def register(self, mapping: dict[str, str]) -> list[str]:
-        """(Re)registers all hotkeys. Returns error messages for combos that failed."""
-        self.unregister_all()
-        errors = []
-        for action, combo in mapping.items():
-            if not combo:
-                continue
+    # ------------------------------------------------------------------ setup
+
+    def start(self, menu_key: str, sticky_choices: set[str]) -> str | None:
+        """(Re)installs the hook. Returns an error message if the menu key is invalid."""
+        error = None
+        try:
+            codes = frozenset(abs(c) for c in keyboard.key_to_scan_codes(menu_key))
+        except (ValueError, TypeError) as exc:
+            error = f"Menu key '{menu_key}' isn't valid ({exc}). Using F9 instead."
+            codes = frozenset(abs(c) for c in keyboard.key_to_scan_codes("f9"))
+        with self._lock:
+            self._menu_codes = codes
+            self._sticky = frozenset(sticky_choices)
+        if self._remove_hook is None:
+            self._remove_hook = keyboard.hook(self._on_key, suppress=True)
+        return error
+
+    def stop(self) -> None:
+        if self._remove_hook is not None:
             try:
-                self._handles[action] = keyboard.add_hotkey(
-                    combo, lambda a=action: self.triggered.emit(a), suppress=True, trigger_on_release=False)
-            except (ValueError, ImportError) as exc:
-                errors.append(f"{action} ({combo}): {exc}")
-        return errors
-
-    def add_temporary(self, name: str, combo: str) -> None:
-        """Extra hotkey active only for a while (e.g. Esc while the region selector is open)."""
-        self.remove_temporary(name)
-        self._temporary[name] = keyboard.add_hotkey(combo, lambda: self.triggered.emit(name), suppress=True)
-
-    def remove_temporary(self, name: str) -> None:
-        handle = self._temporary.pop(name, None)
-        if handle is not None:
-            try:
-                keyboard.remove_hotkey(handle)
+                self._remove_hook()
             except (KeyError, ValueError):
                 pass
+            self._remove_hook = None
 
-    def unregister_all(self) -> None:
-        for handle in list(self._handles.values()) + list(self._temporary.values()):
-            try:
-                keyboard.remove_hotkey(handle)
-            except (KeyError, ValueError):
-                pass
-        self._handles.clear()
-        self._temporary.clear()
+    # ------------------------------------------------------------------ state (called from the Qt thread)
+
+    @property
+    def menu_open(self) -> bool:
+        return self._menu_open
+
+    def close_menu(self) -> None:
+        with self._lock:
+            was_open, self._menu_open = self._menu_open, False
+        if was_open:
+            self.menu_changed.emit(False)
+
+    def set_grab_escape(self, on: bool) -> None:
+        with self._lock:
+            self._grab_escape = on
+
+    # ------------------------------------------------------------------ hook (keyboard's thread)
+
+    def _on_key(self, event: keyboard.KeyboardEvent) -> bool:
+        """Returns False to block the key from reaching other apps."""
+        code = abs(event.scan_code or 0)
+        name = (event.name or "").lower()
+
+        with self._lock:
+            if event.event_type == keyboard.KEY_UP:
+                if code in self._held:
+                    self._held.discard(code)
+                    return False
+                return True
+
+            repeat = code in self._held
+
+            if code in self._menu_codes:
+                self._held.add(code)
+                if not repeat:  # holding the key doesn't flicker the menu
+                    self._menu_open = not self._menu_open
+                    self.menu_changed.emit(self._menu_open)
+                return False
+
+            if name in DIGITS and (self._menu_open or repeat):
+                self._held.add(code)
+                if self._menu_open:
+                    if name not in self._sticky:
+                        self._menu_open = False
+                        self.menu_changed.emit(False)
+                    self.choice.emit(name, repeat)
+                return False
+
+            if name == "esc" and (self._menu_open or self._grab_escape or repeat):
+                self._held.add(code)
+                if self._menu_open:
+                    self._menu_open = False
+                    self.menu_changed.emit(False)
+                elif self._grab_escape and not repeat:
+                    self.escape.emit()
+                return False
+
+        return True
 
 
 def pretty(combo: str) -> str:

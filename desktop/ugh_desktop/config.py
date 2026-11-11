@@ -40,19 +40,14 @@ Explanation: [Rich Text Explanation]
 DEFAULTS: dict = {
     "model": DEFAULT_MODEL,
     "capture_prompt": "Answer the question(s) shown in the attached screenshot.",
-    "hotkeys": {
-        "capture_screen": "ctrl+alt+q",   # whole primary monitor
-        "capture_region": "ctrl+alt+w",   # drag-select an area
-        "toggle_hud": "ctrl+alt+h",
-        "scroll_up": "ctrl+alt+up",
-        "scroll_down": "ctrl+alt+down",
-    },
+    "menu_key": "f9",                     # opens the action menu; then press 1-5 (0 cancels)
+    "menu_timeout_seconds": 5,            # menu closes by itself after this long without a choice
     "hud": {
         "corner": "top-right",            # top-left | top-right | bottom-left | bottom-right
         "margin": 20,                     # px from the screen edges
         "width": 420,                     # px
         "max_height_ratio": 0.7,          # of the screen height
-        "opacity": 0.96,                  # 0.2 - 1.0
+        "background_opacity": 0.6,        # panel backgrounds only (text stays solid), 0.0 - 1.0
     },
     "request": {
         "temperature": 0.2,
@@ -90,13 +85,19 @@ def load_config() -> dict:
     """Reads config.json (creating it with defaults on first run) merged over DEFAULTS."""
     path = config_path()
     user: dict = {}
+    unreadable = False
     if path.exists():
         try:
             user = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
-            user = {}
+            user, unreadable = {}, True  # keep the broken file so the user's edits aren't lost
+    original = copy.deepcopy(user)
+    user.pop("hotkeys", None)  # per-action hotkeys were replaced by the menu key
+    if isinstance(user.get("hud"), dict):
+        user["hud"].pop("opacity", None)  # whole-window opacity was removed (background_opacity remains)
     cfg = _merge(DEFAULTS, user)
-    if not path.exists():
+    # Write back new settings (and drop obsolete ones) so they show up in the file for editing.
+    if not unreadable and cfg != original:
         save_config(cfg)
     return cfg
 

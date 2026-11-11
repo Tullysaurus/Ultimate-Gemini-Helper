@@ -4,7 +4,7 @@
 
 Highlight text or images on any webpage, or drag a box over part of the screen, and get an answer from an AI model. It's a single [Tampermonkey](https://www.tampermonkey.net/) userscript that talks directly to [OpenRouter](https://openrouter.ai) with your own API key. There's no server to host.
 
-There's also a [Windows desktop version](#desktop-app-windows): a small always-on-top panel that answers questions about screenshots of your whole screen, driven by hotkeys.
+There's also a [Windows desktop version](#desktop-app-windows): a small always-on-top panel that answers questions about screenshots of your whole screen, driven by a single hotkey menu.
 
 ## Contents
 
@@ -20,11 +20,11 @@ There's also a [Windows desktop version](#desktop-app-windows): a small always-o
 
 ## Desktop app (Windows)
 
-[`desktop/`](desktop/) is a Python/PyQt6 app for when the question isn't in a browser. It shows a small panel (the HUD) in a corner of your screen, styled like the userscript's popup. Press a hotkey to screenshot your primary monitor, or drag a box over part of it, and the answer streams into the panel.
+[`desktop/`](desktop/) is a Python/PyQt6 app for when the question isn't in a browser. It shows a small panel (the HUD) in a corner of your screen, styled like the userscript's popup. Press `F9` and a number to screenshot your primary monitor, or drag a box over part of it, and the answer streams into the panel.
 
 - **Stays out of the way.** The panel is always on top, doesn't take keyboard focus, and lets clicks pass through to whatever is underneath. It stays visible over borderless-fullscreen apps, but not over exclusive-fullscreen games.
 - **Screenshots** are taken with [mss](https://github.com/BoboTiG/python-mss): no capture sound and no permission prompt. The panel hides itself for the moment of the capture so it isn't in the image.
-- **Hotkeys** control everything. They're registered globally with the [keyboard](https://github.com/boppreh/keyboard) package and consume the final key of each shortcut.
+- **One key** controls everything: `F9` opens a numbered menu. Keys are read with a global hook from the [keyboard](https://github.com/boppreh/keyboard) package, which consumes `F9` and, only while the menu is open, the number keys.
 - **LaTeX** in answers is rendered with matplotlib's math renderer. Formulas it can't handle are shown as source.
 - **API key** is stored in Windows Credential Manager. Everything else is in `%APPDATA%\UGH\config.json`.
 
@@ -39,26 +39,35 @@ python -m venv .venv
 
 A UGH icon appears in the system tray. Right-click it, choose **Set API key…**, and paste your OpenRouter key.
 
+While you're changing code, just run `main.py` as above. A build is only needed for a standalone exe.
+
 To build a single `UGH.exe` (in `desktop\dist\`), run:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File desktop\build.ps1
 ```
 
+Add `-Fast` for a folder build (`desktop\dist\UGH\UGH.exe`) that builds and starts faster but has to be shared as a whole folder. Packages are only reinstalled when `requirements.txt` changes (`-Reinstall` forces it), and PyInstaller's cache is reused between builds (`-Clean` discards it).
+
 ### Hotkeys
 
-| Default | Action |
-| --- | --- |
-| `Ctrl+Alt+Q` | Capture the whole primary monitor and ask |
-| `Ctrl+Alt+W` | Drag-select an area and ask (`Esc` or right-click cancels) |
-| `Ctrl+Alt+H` | Show or hide the HUD |
-| `Ctrl+Alt+Up` / `Ctrl+Alt+Down` | Scroll the answer |
+Press `F9` to open the action menu, then press a number:
 
-Change the hotkeys, model, prompt, HUD corner, width and opacity in `config.json` (tray menu → **Open settings file**), then choose **Reload settings**. Each capture is a separate question; there are no follow-ups.
+| Key | Action |
+| --- | --- |
+| `1` | Capture the whole primary monitor and ask |
+| `2` | Drag-select an area and ask (`Esc` or right-click cancels) |
+| `3` | Show or hide the HUD |
+| `4` / `5` | Scroll the explanation up / down (the answer stays pinned at the top) |
+| `0` | Close the menu (so do `Esc` and `F9`) |
+
+The menu stays open after `4`/`5` so you can keep scrolling (holding the key repeats), and closes by itself after 5 seconds without a choice. `F9` never reaches the app you're in. Number keys are only consumed while the menu is open; otherwise they pass through normally.
+
+Change the menu key (`menu_key`), model, prompt, HUD corner, width and opacity in `config.json` (tray menu → **Open settings file**), then choose **Reload settings**. Each capture is a separate question; there are no follow-ups.
 
 ### Notes
 
-- **Elevated apps.** Hotkeys don't fire while an app running as administrator is focused, unless UGH also runs as administrator.
+- **Elevated apps.** The menu key doesn't work while an app running as administrator is focused, unless UGH also runs as administrator.
 - **Multiple monitors.** Only the primary monitor is captured.
 
 ## Features
@@ -151,13 +160,13 @@ desktop/                   Windows desktop HUD (Python, PyQt6)
   main.py                  entry point
   build.ps1                builds dist\UGH.exe with PyInstaller
   ugh_desktop/
-    app.py                 tray icon, hotkeys, capture -> AI -> HUD
+    app.py                 tray icon, menu key, capture -> AI -> HUD
     hud.py                 the always-on-top, click-through panel
     region.py              drag-to-select overlay
     capture.py             mss screen capture
     ai.py                  OpenRouter streaming client
     formatting.py          Markdown + LaTeX -> Qt rich text
-    hotkeys.py             global hotkeys
+    hotkeys.py             global keyboard hook (menu key + menu choices)
     winapi.py              Windows window styles (ctypes)
     config.py              settings file and API key storage
     icons.py               app icon

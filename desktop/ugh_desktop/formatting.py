@@ -20,7 +20,22 @@ MathRenderer = Callable[[str, bool, str], str]
 ANSWER_COLOR = "#1967d2"
 TEXT_COLOR = "#3c4043"
 STRONG_COLOR = "#202124"
-CODE_STYLE = "background-color:#f1f3f4; color:#d93025; font-family:Consolas,monospace;"
+# Background opacity for the answer boxes and code spans (text stays solid). Set by the HUD.
+_bg_alpha = 1.0
+
+
+def set_background_alpha(alpha: float) -> None:
+    global _bg_alpha
+    _bg_alpha = max(0.0, min(1.0, alpha))
+
+
+def bg(hex_rgb: str) -> str:
+    """#RRGGBB -> #AARRGGBB with the current background opacity (Qt rich text understands it)."""
+    return f"#{round(_bg_alpha * 255):02x}{hex_rgb.lstrip('#')}"
+
+
+def code_style() -> str:
+    return f"background-color:{bg('#f1f3f4')}; color:#d93025; font-family:Consolas,monospace;"
 
 MATH_PATTERNS = [
     (re.compile(r"\\\[([\s\S]+?)\\\]"), True),                  # \[ ... \]
@@ -67,13 +82,16 @@ def render_tex_png(tex: str, display: bool, color: str, font_pt: float, scale: f
     from matplotlib import mathtext  # imported lazily: matplotlib is slow to import
     from matplotlib.font_manager import FontProperties
 
+    from matplotlib import rc_context
+
     buf = io.BytesIO()
     try:
-        mathtext.math_to_image(
-            f"${_normalize_tex(tex, display)}$", buf,
-            prop=FontProperties(size=font_pt * (1.1 if display else 1.0)),
-            dpi=96 * scale, format="png", color=color,
-        )
+        with rc_context({"savefig.transparent": True}):  # no white box behind formulas
+            mathtext.math_to_image(
+                f"${_normalize_tex(tex, display)}$", buf,
+                prop=FontProperties(size=font_pt * (1.1 if display else 1.0)),
+                dpi=96 * scale, format="png", color=color,
+            )
     except Exception:  # noqa: BLE001 - any parse/render failure -> show the source instead
         return None
     return buf.getvalue()
@@ -89,7 +107,7 @@ def _inline(text: str) -> str:
     out = re.sub(r"\*\*(.+?)\*\*", rf'<b style="color:{STRONG_COLOR}">\1</b>', out)
     out = re.sub(r"(?<![\w*])\*(?!\s)(.+?)(?<!\s)\*(?!\w)", r"<i>\1</i>", out)
     out = re.sub(r"(?<![\w])_(?!\s)(.+?)(?<!\s)_(?![\w])", r"<i>\1</i>", out)
-    out = re.sub(r"`(.+?)`", rf'<span style="{CODE_STYLE}">\1</span>', out)
+    out = re.sub(r"`(.+?)`", rf'<span style="{code_style()}">\1</span>', out)
     return out
 
 
@@ -135,8 +153,8 @@ def format_rich_text(text: str, add_math: MathRenderer, color: str) -> str:
     return out
 
 
-def format_answer(raw: str, add_math: MathRenderer) -> str:
-    """Full HUD body: answer boxes + explanation."""
+def format_answer(raw: str, add_math: MathRenderer) -> tuple[str, str]:
+    """(answer boxes, explanation) HTML. The HUD pins the first and scrolls the second."""
     answer_match = ANSWER_RE.search(raw)
     explanation_match = EXPLANATION_RE.search(raw)
 
@@ -148,7 +166,7 @@ def format_answer(raw: str, add_math: MathRenderer) -> str:
     boxes = "".join(
         '<table width="100%" cellspacing="0" cellpadding="0" style="margin-bottom:10px"><tr>'
         f'<td width="5" bgcolor="{ANSWER_COLOR}"></td>'
-        f'<td bgcolor="#e8f0fe" style="padding:12px; color:{ANSWER_COLOR}; font-size:14pt; font-weight:600">'
+        f'<td bgcolor="{bg("#e8f0fe")}" style="padding:12px; color:{ANSWER_COLOR}; font-size:14pt; font-weight:600">'
         f"{format_rich_text(a, add_math, ANSWER_COLOR)}</td></tr></table>"
         for a in answers
     )
@@ -158,7 +176,7 @@ def format_answer(raw: str, add_math: MathRenderer) -> str:
     else:
         explanation_src = ANSWER_RE.sub("", raw).strip()
     explanation = format_rich_text(explanation_src, add_math, TEXT_COLOR)
-    return f'{boxes}<div style="color:{TEXT_COLOR}">{explanation}</div>'
+    return boxes, f'<div style="color:{TEXT_COLOR}">{explanation}</div>'
 
 
 def format_message(message: str, color: str = TEXT_COLOR) -> str:

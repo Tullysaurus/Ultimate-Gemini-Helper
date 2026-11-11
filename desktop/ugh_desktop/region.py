@@ -3,8 +3,8 @@
 Shows the frozen screenshot (taken just before the overlay appears) dimmed over
 the primary monitor; you drag a box and the matching part of the screenshot is
 used. The window is WS_EX_NOACTIVATE: it receives the mouse but never takes
-keyboard focus, so the app you were in stays focused. Esc is handled by a
-temporary global hotkey (see app.py) because the overlay never has focus.
+keyboard focus, so the app you were in stays focused. Esc is caught by the
+global keyboard hook (see hotkeys.py) because the overlay never has focus.
 """
 
 from __future__ import annotations
