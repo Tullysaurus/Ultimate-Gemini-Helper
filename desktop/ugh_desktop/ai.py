@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import json
 import threading
+import time
 from dataclasses import dataclass
 from typing import Callable
 
@@ -22,6 +23,21 @@ class Callbacks:
     on_progress: Callable[[str], None]    # accumulated answer text so far
     on_done: Callable[[str], None]        # final answer text
     on_error: Callable[[str], None]       # user-facing error message
+    on_thinking: Callable[[str, int], None] | None = None  # reasoning so far, seconds since the request started
+
+
+THINKING_EMIT_INTERVAL = 0.25  # s; throttles HUD updates while reasoning streams in
+
+
+def _reasoning_text(delta: dict) -> str:
+    """Readable reasoning in a streamed delta (OpenRouter sends `reasoning`, and/or `reasoning_details`)."""
+    if isinstance(delta.get("reasoning"), str):
+        return delta["reasoning"]
+    out = []
+    for item in delta.get("reasoning_details") or []:
+        if isinstance(item, dict):  # reasoning.text / reasoning.summary; reasoning.encrypted has nothing readable
+            out.append(item.get("text") or item.get("summary") or "")
+    return "".join(out)
 
 
 def describe_http_error(status: int, body: str) -> str:
@@ -43,7 +59,7 @@ class AnalysisJob:
     """One request. cancel() stops it; callbacks are silenced once cancelled."""
 
     def __init__(self, api_key: str, model: str, prompt: str, get_png: Callable[[], bytes], request_cfg: dict,
-                 callbacks: Callbacks):
+                 callbacks: Callbacks, show_thinking_after: float = -1):
         self.api_key = api_key
         self.model = model
         self.prompt = prompt
@@ -51,6 +67,7 @@ class AnalysisJob:
         self.png = b""
         self.cfg = request_cfg
         self.cb = callbacks
+        self.show_thinking_after = show_thinking_after  # seconds; negative = never
         self._cancelled = threading.Event()
         self._response: requests.Response | None = None
         self._thread = threading.Thread(target=self._run, name="ugh-ai", daemon=True)
@@ -101,6 +118,7 @@ class AnalysisJob:
             return
         if self.cancelled:
             return
+        started = time.monotonic()
         try:
             self._response = requests.post(
                 OPENROUTER_URL,
@@ -125,6 +143,8 @@ class AnalysisJob:
         text = ""
         finish_reason = None
         thinking_shown = False
+        reasoning = ""
+        last_thinking_emit = 0.0
         try:
             # chunk_size=None: hand over data as soon as it arrives (the default 512-byte
             # chunks would hold back small streamed pieces of the answer).
@@ -154,9 +174,18 @@ class AnalysisJob:
                 if delta.get("content"):
                     text += delta["content"]
                     self._emit(self.cb.on_progress, text)
-                elif (delta.get("reasoning") or delta.get("reasoning_details")) and not text and not thinking_shown:
-                    thinking_shown = True
-                    self._emit(self.cb.on_status, "Thinking...")
+                elif (delta.get("reasoning") or delta.get("reasoning_details")) and not text:
+                    if not thinking_shown:
+                        thinking_shown = True
+                        self._emit(self.cb.on_status, "Thinking...")
+                    reasoning += _reasoning_text(delta)
+                    now = time.monotonic()
+                    if (self.cb.on_thinking and self.show_thinking_after >= 0 and reasoning.strip()
+                            and now - started >= self.show_thinking_after
+                            and now - last_thinking_emit >= THINKING_EMIT_INTERVAL):
+                        last_thinking_emit = now
+                        if not self.cancelled:
+                            self.cb.on_thinking(reasoning, int(now - started))
         except Exception as exc:  # noqa: BLE001
             # cancel() closes the response from another thread, which can surface as
             # odd errors inside http.client; those are expected and ignored.

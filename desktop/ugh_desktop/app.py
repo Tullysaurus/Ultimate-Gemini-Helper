@@ -34,6 +34,7 @@ class Bridge(QObject):
     """Carries worker-thread callbacks onto the Qt thread. Each carries the job id."""
     status = pyqtSignal(int, str)
     progress = pyqtSignal(int, str)
+    thinking = pyqtSignal(int, str, int)
     done = pyqtSignal(int, str)
     error = pyqtSignal(int, str)
 
@@ -52,6 +53,7 @@ class App(QObject):
         self.bridge = Bridge()
         self.bridge.status.connect(self._on_status)
         self.bridge.progress.connect(self._on_progress)
+        self.bridge.thinking.connect(self._on_thinking)
         self.bridge.done.connect(self._on_done)
         self.bridge.error.connect(self._on_error)
 
@@ -255,13 +257,19 @@ class App(QObject):
                 on_progress=lambda t: self.bridge.progress.emit(job_id, t),
                 on_done=lambda t: self.bridge.done.emit(job_id, t),
                 on_error=lambda m: self.bridge.error.emit(job_id, m),
+                on_thinking=lambda t, secs: self.bridge.thinking.emit(job_id, t, secs),
             ),
+            show_thinking_after=float(self.cfg.get("show_thinking_after_seconds", 8)),
         )
         self.job.start()
 
     def _on_status(self, job_id: int, status: str) -> None:
         if job_id == self.job_id:
             self.hud.show_loading(status)
+
+    def _on_thinking(self, job_id: int, text: str, seconds: int) -> None:
+        if job_id == self.job_id:
+            self.hud.show_thinking(text, seconds)
 
     def _on_progress(self, job_id: int, text: str) -> None:
         if job_id == self.job_id:

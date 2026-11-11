@@ -284,11 +284,11 @@ class Hud(QWidget):
             self.answer.show()
         self.body.setHtml(html)
         self._set_vertical_margins(self.body, 6 if answer_html is not None else 16, 16)
-        if keep_scroll:
-            bar.setValue(pos)
         self._relayout()
+        bar.setValue(pos if keep_scroll else 0)
 
     def clear(self) -> None:
+        self.body.setProperty("is_thinking", False)
         self.answer.clear()
         self.answer.hide()
         self.body.clear()
@@ -300,7 +300,22 @@ class Hud(QWidget):
             self.body.setProperty("is_message", True)
             self._set_html(formatting.format_message(status, "#5f6368"), keep_scroll=False)
 
+    def show_thinking(self, text: str, seconds: int) -> None:
+        """Live reasoning in the body; follows the newest text unless scrolled up (4)."""
+        self.status.setText(f"Thinking... {seconds}s")
+        self.spinner.start()
+        bar = self.body.verticalScrollBar()
+        follow = self.body.property("is_thinking") is not True or bar.value() >= bar.maximum() - 4
+        self.body.setProperty("is_message", True)
+        self.body.setProperty("is_thinking", True)
+        self._set_html(formatting.format_thinking(text), keep_scroll=True)
+        if follow:
+            bar.setValue(bar.maximum())
+
     def show_answer(self, raw: str, final: bool) -> None:
+        # Coming from a status message or the thinking text: start the answer at the top.
+        fresh = bool(self.body.property("is_message"))
+        self.body.setProperty("is_thinking", False)
         self.body.setProperty("is_message", False)
         self.status.setText("Done" if final else "Answering...")
         if final:
@@ -308,15 +323,17 @@ class Hud(QWidget):
         else:
             self.spinner.start()
         answer_html, explanation_html = formatting.format_answer(raw, self._add_math)
-        self._set_html(explanation_html, keep_scroll=True, answer_html=answer_html)
+        self._set_html(explanation_html, keep_scroll=not fresh, answer_html=answer_html)
 
     def show_error(self, message: str) -> None:
+        self.body.setProperty("is_thinking", False)
         self.body.setProperty("is_message", True)
         self.status.setText("Error")
         self.spinner.stop()
         self._set_html(formatting.format_message(message, "#d93025"), keep_scroll=False)
 
     def show_message(self, message: str) -> None:
+        self.body.setProperty("is_thinking", False)
         self.body.setProperty("is_message", True)
         self.status.setText("")
         self.spinner.stop()

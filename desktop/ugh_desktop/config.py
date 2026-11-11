@@ -57,6 +57,7 @@ DEFAULTS: dict = {
         "timeout_seconds": 180,
     },
     "max_image_side": 2560,               # full-screen captures are downscaled to this (px)
+    "show_thinking_after_seconds": 8,     # show the model's reasoning once a request takes this long (0 = right away, -1 = never)
 }
 
 

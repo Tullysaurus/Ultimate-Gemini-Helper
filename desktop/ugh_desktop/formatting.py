@@ -179,5 +179,17 @@ def format_answer(raw: str, add_math: MathRenderer) -> tuple[str, str]:
     return boxes, f'<div style="color:{TEXT_COLOR}">{explanation}</div>'
 
 
+THINKING_MAX_CHARS = 6000  # only the tail of very long reasoning is shown
+
+
+def format_thinking(text: str) -> str:
+    """The model's raw reasoning: grey, italic, line breaks kept, not parsed as Markdown/LaTeX."""
+    text = text.strip()
+    if len(text) > THINKING_MAX_CHARS:
+        text = "…" + text[-THINKING_MAX_CHARS:]
+    body = html.escape(text).replace("\n", "<br>")
+    return f'<div style="color:#80868b; font-style:italic">{body}</div>'
+
+
 def format_message(message: str, color: str = TEXT_COLOR) -> str:
     return f'<div style="color:{color}">{html.escape(message)}</div>'

@@ -67,6 +67,8 @@ A tiny dot in the top-right corner of the screen shows the state: green when ena
 
 Change the menu key (`menu_key`), model, prompt, HUD corner, width and opacity in `config.json` (tray menu → **Open settings file**), then choose **Reload settings**. Each capture is a separate question; there are no follow-ups.
 
+**Long thinking.** If a reasoning model is still thinking `show_thinking_after_seconds` (default 8) after the request was sent, its reasoning is shown live in the panel in grey italics, with the elapsed time in the header, until the answer starts and replaces it. Set it to `0` to always show the reasoning, or `-1` to never show it. Not every model shares its reasoning; for those you'll keep seeing just "Thinking...".
+
 ### Notes
 
 - **Elevated apps.** The menu key doesn't work while an app running as administrator is focused, unless UGH also runs as administrator.
