@@ -67,6 +67,9 @@
             getDisplayMedia: navigator.mediaDevices?.getDisplayMedia?.bind(navigator.mediaDevices) || null
         };
     })();
+
+    const realWindow = Object.getOwnPropertyDescriptor(Document.prototype, "defaultView").get.call(document);
+
     const mk = (tag) => N.createElement.call(document, tag);
     const setHTML = (el, html) => N.setInnerHTML.call(el, html);
     const getVal = (input) => N.inputValue.get.call(input);
@@ -534,9 +537,9 @@ Explanation: [Rich Text Explanation]
             N.stopImmediatePropagation.call(e);
         }
     };
-    listen(window, "keydown", onGlobalKey, true);
-    listen(window, "keyup", onGlobalKey, true);
-    for (const type of FIREWALL_EVENTS) listen(window, type, firewall, true);
+    listen(realWindow, "keydown", onGlobalKey, true);
+    listen(realWindow, "keyup", onGlobalKey, true);
+    for (const type of FIREWALL_EVENTS) listen(realWindow, type, firewall, true);
 
     /* =====================================================================
      *  UI
@@ -1221,5 +1224,5 @@ Explanation: [Rich Text Explanation]
     // --- Init ---
     if (document.documentElement) getUiRoot(); // create the shadow root now, before page scripts run
     if (document.body) createFloatingUI();
-    else listen(window, "DOMContentLoaded", createFloatingUI);
+    else listen(realWindow, "DOMContentLoaded", createFloatingUI);
 })();

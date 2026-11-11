@@ -1,0 +1,6 @@
+PyQt6>=6.6
+mss>=9.0
+keyboard>=0.13.5
+requests>=2.31
+keyring>=24.0
+matplotlib>=3.8

@@ -9,3 +9,8 @@ Thumbs.db
 
 # Node (if you add tooling later)
 node_modules/
+
+# Build/local stuff
+__pycache__/
+build/
+dist/
