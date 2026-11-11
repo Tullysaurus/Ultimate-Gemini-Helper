@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Page Event Monitor</title>
+<!--
+  Page Event Monitor
+  ------------------
+  Logs everything an ordinary web page can observe: every DOM event that
+  reaches window (listening in the capture phase, i.e. before any other page
+  listener), focus/visibility/size state, DOM mutations, network resources the
+  page loads, new globals, and selection changes.
+
+  Use it to see exactly what a userscript/extension exposes to a website:
+  open it with the script enabled, use the script, and watch the log.
+  Rows whose event target is not part of this page (e.g. <ugh-root>) are
+  highlighted as "foreign".
+
+  No dependencies; works from file:// or any static server.
+-->
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #fff; --text: #1f2328; --muted: #656d76; --border: #d8dee4;
+    --accent: #0969da; --foreign: #fff1c2; --foreign-border: #d4a72c; --state: #ddf4ff; --dom: #fbefff; --net: #e6ffec;
+    --mono: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --panel: #161b22; --text: #e6edf3; --muted: #8d96a0; --border: #30363d;
+      --accent: #4493f8; --foreign: #3b2e05; --foreign-border: #9e6a03; --state: #0c2d4a; --dom: #2e1a3a; --net: #0f2f1a;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; display: flex; flex-direction: column; }
+  header { padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--panel); display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+  header h1 { font-size: 16px; margin: 0; }
+  header .hint { color: var(--muted); font-size: 12px; }
+  main { flex: 1; display: grid; grid-template-columns: minmax(280px, 380px) 1fr; min-height: 0; }
+  @media (max-width: 800px) { main { grid-template-columns: 1fr; grid-template-rows: auto 1fr; } }
+  aside { border-right: 1px solid var(--border); overflow: auto; padding: 12px 16px; background: var(--panel); }
+  section h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 16px 0 8px; }
+  section:first-child h2 { margin-top: 0; }
+
+  /* Test targets */
+  .targets { display: grid; gap: 8px; }
+  .box { border: 1px solid var(--border); border-radius: 6px; padding: 8px; background: var(--bg); }
+  .box:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  input, textarea, select, button { font: inherit; color: inherit; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; width: 100%; }
+  button { cursor: pointer; width: auto; }
+  .scroller { height: 70px; overflow: auto; }
+  .scroller div { height: 200px; background: linear-gradient(var(--bg), var(--border)); }
+  [draggable] { cursor: grab; }
+
+  /* State */
+  table.state { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12px; }
+  table.state td { padding: 2px 4px; border-bottom: 1px solid var(--border); vertical-align: top; word-break: break-all; }
+  table.state td:first-child { color: var(--muted); white-space: nowrap; width: 1%; }
+  table.state tr.changed td { background: var(--state); transition: background 0s; }
+  table.state tr td { transition: background 1.2s; }
+
+  /* Controls */
+  .controls { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .controls label { display: inline-flex; gap: 4px; align-items: center; font-size: 12px; white-space: nowrap; }
+  .controls input[type=checkbox] { width: auto; }
+  .controls input[type=search] { width: 180px; padding: 4px 8px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 6px; }
+  .counts { font-family: var(--mono); font-size: 11px; color: var(--muted); max-height: 160px; overflow: auto; }
+
+  /* Log */
+  .log-wrap { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+  .log-tools { padding: 8px 16px; border-bottom: 1px solid var(--border); background: var(--panel); }
+  #log { flex: 1; overflow: auto; font-family: var(--mono); font-size: 12px; }
+  #log table { width: 100%; border-collapse: collapse; }
+  #log th { position: sticky; top: 0; background: var(--panel); text-align: left; font-weight: 600; padding: 4px 8px; border-bottom: 1px solid var(--border); z-index: 1; }
+  #log td { padding: 2px 8px; border-bottom: 1px solid var(--border); vertical-align: top; white-space: nowrap; }
+  #log td.detail { white-space: normal; word-break: break-word; min-width: 240px; }
+  #log tr.foreign td { background: var(--foreign); }
+  #log tr.foreign td:first-child { box-shadow: inset 3px 0 0 var(--foreign-border); }
+  #log tr.kind-state td { background: var(--state); }
+  #log tr.kind-dom td { background: var(--dom); }
+  #log tr.kind-net td { background: var(--net); }
+  #log .untrusted { color: #cf222e; font-weight: 600; }
+  #log .count { color: var(--accent); font-weight: 600; }
+  .muted { color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Page Event Monitor</h1>
+  <span class="hint">Everything a normal web page can see. Rows highlighted in yellow have a target that isn't part of this page (e.g. an extension's injected element).</span>
+</header>
+
+<main>
+  <aside id="sidebar">
+    <section>
+      <h2>Test targets</h2>
+      <div class="targets" id="targets">
+        <div class="row2">
+          <div class="box" id="div-a" tabindex="0">Focusable div A</div>
+          <div class="box" id="div-b" tabindex="0">Focusable div B</div>
+        </div>
+        <div class="box" id="plain-text">Plain text you can select. What is the capital of France? <b>A)</b> Paris <b>B)</b> Rome</div>
+        <input id="text-input" placeholder="Text input" autocomplete="off">
+        <textarea id="textarea" rows="2" placeholder="Textarea"></textarea>
+        <div class="box" id="editable" contenteditable="true">contenteditable div</div>
+        <div class="row2">
+          <select id="select"><option>Option 1</option><option>Option 2</option></select>
+          <button id="button" type="button">Button</button>
+        </div>
+        <div class="row2">
+          <a id="link" href="#hash-test">Link (#hash)</a>
+          <div class="box" id="draggable" draggable="true">Drag me</div>
+        </div>
+        <div class="box scroller" id="scroller"><div>Scrollable div</div></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Live state</h2>
+      <table class="state"><tbody id="state"></tbody></table>
+    </section>
+
+    <section>
+      <h2>Event counts</h2>
+      <div class="counts" id="counts">none yet</div>
+    </section>
+  </aside>
+
+  <div class="log-wrap">
+    <div class="log-tools">
+      <div class="controls">
+        <button id="pause" type="button">Pause</button>
+        <button id="clear" type="button">Clear</button>
+        <button id="copy" type="button">Copy log</button>
+        <label><input type="checkbox" id="collapse" checked> Collapse repeats</label>
+        <label><input type="checkbox" id="foreign-only"> Foreign targets only</label>
+        <input type="search" id="search" placeholder="Filter (type, target, detail)">
+        <span class="muted" id="stats"></span>
+      </div>
+      <div class="chips" id="categories"></div>
+    </div>
+    <div id="log">
+      <table>
+        <thead><tr><th>Time (ms)</th><th>Category</th><th>Event</th><th>Phase</th><th>Target</th><th>Details</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<script>
+(() => {
+  "use strict";
+
+  /* ------------------------------------------------------------------
+   * Event types: every on* handler the browser exposes on window,
+   * document and elements, plus types that have no on* property.
+   * ------------------------------------------------------------------ */
+  const EXTRA_TYPES = [
+    "DOMContentLoaded", "readystatechange", "visibilitychange", "focusin", "focusout",
+    "compositionstart", "compositionupdate", "compositionend", "textInput",
+    "fullscreenchange", "fullscreenerror", "pointerlockchange", "pointerlockerror",
+    "gotpointercapture", "lostpointercapture", "pointerrawupdate",
+    "selectionchange", "selectstart", "beforeinput", "beforetoggle", "toggle",
+    "DOMMouseScroll", "MozMousePixelScroll", "mouseenter", "mouseleave",
+    "copy", "cut", "paste", "beforecopy", "beforecut", "beforepaste",
+    "freeze", "resume", "pageshow", "pagehide", "beforeunload", "unload",
+    "devicechange", "orientationchange", "scrollend", "contentvisibilityautostatechange"
+  ];
+  const collectOnTypes = (obj) => {
+    const out = [];
+    for (let o = obj; o; o = Object.getPrototypeOf(o)) {
+      for (const k of Object.getOwnPropertyNames(o)) if (k.startsWith("on")) out.push(k.slice(2));
+    }
+    return out;
+  };
+  const ALL_TYPES = [...new Set([
+    ...collectOnTypes(window), ...collectOnTypes(document), ...collectOnTypes(document.documentElement), ...EXTRA_TYPES
+  ])].sort();
+
+  const CATEGORY_RULES = [
+    ["Keyboard", /^key/],
+    ["Pointer", /^(pointer|gotpointer|lostpointer)/],
+    ["Mouse", /^(mouse|click|dblclick|auxclick|contextmenu|DOMMouseScroll|MozMouse)/],
+    ["Touch", /^touch/],
+    ["Wheel/Scroll", /^(wheel|scroll|mousewheel)/],
+    ["Focus", /^(focus|blur)/],
+    ["Input/Text", /^(input|beforeinput|change|select|textInput|composition|invalid|search|reset|submit|formdata)/],
+    ["Clipboard", /^(copy|cut|paste|before(copy|cut|paste))$/],
+    ["Drag", /^(drag|drop)/],
+    ["Window/Page", /^(resize|load|unload|beforeunload|pageshow|pagehide|DOMContentLoaded|readystatechange|visibilitychange|hashchange|popstate|message|messageerror|storage|online|offline|languagechange|freeze|resume|orientationchange|devicemotion|deviceorientation|error|rejectionhandled|unhandledrejection|beforeprint|afterprint|fullscreen|pointerlock|appinstalled|beforeinstallprompt|securitypolicyviolation|pageswap|pagereveal)/],
+    ["Animation/Media", /^(animation|transition|play|pause|ended|volume|seek|time|duration|loaded|canplay|waiting|stalled|suspend|emptied|ratechange|progress|abort|cuechange|encrypted|waitingforkey|resize)/]
+  ];
+  const categoryOf = (type) => {
+    for (const [name, re] of CATEGORY_RULES) if (re.test(type)) return name;
+    return "Other";
+  };
+  const SYNTHETIC_CATEGORIES = ["State", "DOM", "Network", "Globals"];
+  const CATEGORIES = [...new Set([...CATEGORY_RULES.map((r) => r[0]), "Other", ...SYNTHETIC_CATEGORIES])];
+
+  /* ------------------------------------------------------------------
+   * Log
+   * ------------------------------------------------------------------ */
+  const $ = (id) => document.getElementById(id);
+  const rowsEl = $("rows"), logEl = $("log");
+  const MAX_ROWS = 3000;
+  const t0 = performance.now();
+  const enabled = Object.fromEntries(CATEGORIES.map((c) => [c, true]));
+  const counts = new Map();
+  let paused = false, total = 0, lastRow = null, lastKey = "";
+  const entries = []; // for copy
+
+  // The monitor's own output is excluded so the log doesn't log itself:
+  // - events inside the log table (auto-scrolling it fires scroll events)
+  // - DOM mutations in the log, controls and state/count panels (they update constantly)
+  const ownUiEvent = (node) => node instanceof Node && ($("log").contains(node) || $("state").contains(node) || $("counts").contains(node));
+  const ownUiMutation = (node) => node instanceof Node &&
+    (document.querySelector(".log-wrap").contains(node) || $("state").contains(node) || $("counts").contains(node));
+
+  const describeNode = (n) => {
+    if (n === window) return "window";
+    if (n === document) return "document";
+    if (!n) return "null";
+    if (n.nodeType === Node.TEXT_NODE) return "#text";
+    if (!(n instanceof Element)) return String(n.constructor?.name || n);
+    let s = n.localName;
+    if (n.id) s += "#" + n.id;
+    if (n.classList?.length) s += "." + [...n.classList].slice(0, 2).join(".");
+    return s;
+  };
+
+  // A target is "foreign" if it isn't window/document or an element this page authored.
+  const PAGE_ROOTS = ["targets", "sidebar"];
+  const isForeign = (n) => {
+    if (!n || n === window || n === document || n === document.documentElement || n === document.body || n === document.head) return false;
+    if (!(n instanceof Node)) return false;
+    if (n.nodeType !== Node.ELEMENT_NODE) n = n.parentElement || n.parentNode; // text nodes: judge by their element
+    if (!n || n === document.body || n === document.documentElement) return false;
+    if (n.closest &&(n.closest("header") || n.closest(".log-wrap") || PAGE_ROOTS.some((id) => $(id)?.contains(n)))) return false;
+    return true;
+  };
+
+  const phaseName = (p) => ["none", "capture", "target", "bubble"][p] || p;
+  const fmt = (v) => (typeof v === "string" ? JSON.stringify(v.length > 80 ? v.slice(0, 80) + "…" : v) : String(v));
+
+  const detailsOf = (e) => {
+    const d = [];
+    const add = (k, v) => { if (v !== undefined && v !== null && v !== "") d.push(`${k}=${v}`); };
+    if (e instanceof KeyboardEvent) {
+      add("key", fmt(e.key)); add("code", e.code); if (e.repeat) add("repeat", true);
+      if (e.isComposing) add("composing", true); add("location", e.location || undefined);
+    }
+    if (e instanceof MouseEvent) {
+      add("client", `${e.clientX},${e.clientY}`); add("screen", `${e.screenX},${e.screenY}`);
+      if (e.movementX || e.movementY) add("movement", `${e.movementX},${e.movementY}`);
+      add("button", e.button); add("buttons", e.buttons); if (e.detail) add("detail", e.detail);
+      if (e.relatedTarget) add("related", describeNode(e.relatedTarget));
+    }
+    if (typeof PointerEvent !== "undefined" && e instanceof PointerEvent) {
+      add("pointerId", e.pointerId); add("pointerType", e.pointerType); if (e.pressure) add("pressure", e.pressure.toFixed(2));
+    }
+    if (e instanceof WheelEvent) add("delta", `${e.deltaX},${e.deltaY},${e.deltaZ} mode${e.deltaMode}`);
+    if (typeof TouchEvent !== "undefined" && e instanceof TouchEvent) add("touches", e.touches.length);
+    if (e instanceof FocusEvent) add("relatedTarget", describeNode(e.relatedTarget));
+    if (e instanceof InputEvent) { add("inputType", e.inputType); add("data", e.data !== null ? fmt(e.data) : undefined); }
+    if (typeof CompositionEvent !== "undefined" && e instanceof CompositionEvent) add("data", fmt(e.data));
+    if (e instanceof ClipboardEvent && e.clipboardData) {
+      const types = [...e.clipboardData.types];
+      add("types", types.join(","));
+      try { add("text", fmt(e.clipboardData.getData("text/plain"))); } catch (_) {}
+    }
+    if (e instanceof DragEvent && e.dataTransfer) add("dataTypes", [...e.dataTransfer.types].join(","));
+    if (e instanceof MessageEvent) { add("origin", e.origin); add("data", fmt(typeof e.data === "string" ? e.data : JSON.stringify(e.data) ?? "")); }
+    if (e instanceof StorageEvent) { add("key", e.key); add("newValue", fmt(e.newValue ?? "")); }
+    if (e instanceof HashChangeEvent) add("newURL", e.newURL);
+    if (e instanceof PageTransitionEvent) add("persisted", e.persisted);
+    if (e.type === "resize") add("inner", `${innerWidth}x${innerHeight}`);
+    if (e.type === "scroll" || e.type === "scrollend") add("scroll", `${scrollX},${scrollY}`);
+    if (e.type === "visibilitychange") add("visibilityState", document.visibilityState);
+    if (e.type === "selectionchange") add("selection", fmt(String(getSelection())));
+    if (e instanceof ErrorEvent) add("message", fmt(e.message || ""));
+    // Any other event carrying text data (e.g. Chrome's legacy "textInput" TextEvent).
+    if (typeof e.data === "string" && !(e instanceof InputEvent) && !(e instanceof MessageEvent) &&
+        !(typeof CompositionEvent !== "undefined" && e instanceof CompositionEvent)) add("data", fmt(e.data));
+    if (e.composed === false) add("composed", false);
+    if (e.defaultPrevented) add("defaultPrevented", true);
+    return d.join("  ");
+  };
+
+  const render = () => {
+    $("stats").textContent = `${total} events${paused ? " (paused)" : ""}`;
+    const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+    $("counts").textContent = sorted.length ? sorted.map(([k, v]) => `${k}: ${v}`).join("   ") : "none yet";
+  };
+  let renderQueued = false;
+  const queueRender = () => { if (!renderQueued) { renderQueued = true; requestAnimationFrame(() => { renderQueued = false; render(); }); } };
+
+  const search = () => $("search").value.trim().toLowerCase();
+
+  const log = ({ category, type, phase = "", target = "", detail = "", foreign = false, trusted = true, kind = "" }) => {
+    counts.set(type, (counts.get(type) || 0) + 1);
+    total++;
+    queueRender();
+    if (paused || !enabled[category]) return;
+    if ($("foreign-only").checked && !foreign) return;
+    const q = search();
+    if (q && !`${type} ${target} ${detail} ${category}`.toLowerCase().includes(q)) return;
+
+    const time = (performance.now() - t0).toFixed(1);
+    const key = `${type}|${phase}|${target}|${trusted}`;
+    entries.push(`${time}\t${category}\t${type}\t${phase}\t${target}\t${trusted ? "" : "UNTRUSTED "}${detail}`);
+    if (entries.length > MAX_ROWS * 2) entries.splice(0, entries.length - MAX_ROWS * 2);
+
+    const atBottom = logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 40;
+    if ($("collapse").checked && key === lastKey && lastRow?.isConnected) {
+      const c = lastRow.querySelector(".count");
+      c.textContent = ` ×${(+c.dataset.n || 1) + 1}`;
+      c.dataset.n = (+c.dataset.n || 1) + 1;
+      lastRow.cells[0].textContent = time;
+      lastRow.cells[5].firstChild.textContent = (trusted ? "" : "") + detail;
+    } else {
+      const tr = document.createElement("tr");
+      if (foreign) tr.className = "foreign";
+      if (kind) tr.classList.add("kind-" + kind);
+      const cells = [time, category, type, phase, target];
+      for (const v of cells) { const td = document.createElement("td"); td.textContent = v; tr.appendChild(td); }
+      const typeCell = tr.cells[2];
+      const count = document.createElement("span"); count.className = "count"; typeCell.appendChild(count);
+      const det = document.createElement("td"); det.className = "detail";
+      det.appendChild(document.createTextNode(detail));
+      if (!trusted) { const u = document.createElement("span"); u.className = "untrusted"; u.textContent = "  [isTrusted=false]"; det.appendChild(u); }
+      tr.appendChild(det);
+      rowsEl.appendChild(tr);
+      while (rowsEl.rows.length > MAX_ROWS) rowsEl.deleteRow(0);
+      lastRow = tr;
+      lastKey = key;
+    }
+    if (atBottom) logEl.scrollTop = logEl.scrollHeight;
+  };
+
+  /* ------------------------------------------------------------------
+   * 1. DOM events: one capture-phase listener on window per type. Capture
+   *    on window runs before any other listener on the page, and sees
+   *    events that don't bubble (focus, blur, mouseenter, scroll on divs...).
+   *    Events targeted at window itself (resize, window focus/blur, message,
+   *    storage...) arrive here in the target phase.
+   * ------------------------------------------------------------------ */
+  const onEvent = (e) => {
+    const target = e.target;
+    if (ownUiEvent(target)) return;
+    log({
+      category: categoryOf(e.type),
+      type: e.type,
+      phase: phaseName(e.eventPhase),
+      target: describeNode(target),
+      detail: detailsOf(e),
+      foreign: isForeign(target),
+      trusted: e.isTrusted
+    });
+  };
+  for (const type of ALL_TYPES) {
+    try { window.addEventListener(type, onEvent, { capture: true, passive: true }); } catch (_) {}
+  }
+  // Targets that don't propagate to window.
+  if (window.visualViewport) for (const t of ["resize", "scroll", "scrollend"]) visualViewport.addEventListener(t, (e) => log({ category: "Window/Page", type: "visualViewport." + t, target: "visualViewport", detail: `scale=${visualViewport.scale.toFixed(2)} ${Math.round(visualViewport.width)}x${Math.round(visualViewport.height)} offset=${Math.round(visualViewport.offsetLeft)},${Math.round(visualViewport.offsetTop)}`, trusted: e.isTrusted }));
+  if (screen.orientation) screen.orientation.addEventListener("change", () => log({ category: "Window/Page", type: "screen.orientation.change", target: "screen", detail: screen.orientation.type }));
+  if (navigator.mediaDevices?.addEventListener) navigator.mediaDevices.addEventListener("devicechange", () => log({ category: "Other", type: "mediaDevices.devicechange", target: "navigator" }));
+  for (const q of ["(prefers-color-scheme: dark)", "(prefers-reduced-motion: reduce)", "print"]) {
+    const mq = matchMedia(q);
+    mq.addEventListener?.("change", () => log({ category: "Window/Page", type: "matchMedia.change", target: q, detail: `matches=${mq.matches}` }));
+  }
+
+  /* ------------------------------------------------------------------
+   * 2. State polling: things a page can read at any time without events.
+   * ------------------------------------------------------------------ */
+  const STATE = {
+    "document.hasFocus()": () => document.hasFocus(),
+    "document.activeElement": () => describeNode(document.activeElement),
+    "document.visibilityState": () => document.visibilityState,
+    "document.hidden": () => document.hidden,
+    "document.fullscreenElement": () => describeNode(document.fullscreenElement),
+    "document.pointerLockElement": () => describeNode(document.pointerLockElement),
+    "navigator.userActivation": () => navigator.userActivation ? `isActive=${navigator.userActivation.isActive} hasBeenActive=${navigator.userActivation.hasBeenActive}` : "n/a",
+    "selection": () => fmt(String(getSelection())),
+    "window inner size": () => `${innerWidth}x${innerHeight}`,
+    "window outer size": () => `${outerWidth}x${outerHeight}`,
+    "window position (screenX/Y)": () => `${screenX},${screenY}`,
+    "scroll (scrollX/Y)": () => `${Math.round(scrollX)},${Math.round(scrollY)}`,
+    "devicePixelRatio": () => devicePixelRatio,
+    "screen": () => `${screen.width}x${screen.height} avail ${screen.availWidth}x${screen.availHeight}`,
+    "location.href": () => location.href,
+    "history.length": () => history.length,
+    "navigator.onLine": () => navigator.onLine,
+    "<html> child elements": () => [...document.documentElement.children].map(describeNode).join(", "),
+    "<body> direct children": () => document.body ? document.body.children.length : 0,
+    "stylesheets": () => document.styleSheets.length,
+    "same-origin frames": () => window.frames.length
+  };
+  const stateEl = $("state");
+  const stateRows = {};
+  const stateValues = {};
+  for (const name of Object.keys(STATE)) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = "<td></td><td></td>";
+    tr.cells[0].textContent = name;
+    stateEl.appendChild(tr);
+    stateRows[name] = tr;
+  }
+  const pollState = () => {
+    for (const [name, read] of Object.entries(STATE)) {
+      let v; try { v = String(read()); } catch (err) { v = "error: " + err.message; }
+      if (stateValues[name] !== v) {
+        const first = !(name in stateValues);
+        stateValues[name] = v;
+        const tr = stateRows[name];
+        tr.cells[1].textContent = v;
+        tr.classList.add("changed");
+        setTimeout(() => tr.classList.remove("changed"), 50);
+        if (!first) log({ category: "State", type: "state: " + name, target: "", detail: v, kind: "state" });
+      }
+    }
+  };
+  setInterval(pollState, 100);
+  pollState();
+
+  /* ------------------------------------------------------------------
+   * 3. DOM mutations anywhere in the document (injected elements, styles,
+   *    iframes, attribute changes on <html>/<body>...). Changes to this
+   *    monitor's own log/state panels are ignored.
+   * ------------------------------------------------------------------ */
+  new MutationObserver((mutations) => {
+    for (const m of mutations) {
+      if (ownUiMutation(m.target)) continue;
+      if (m.type === "childList") {
+        for (const n of m.addedNodes) {
+          if (n.nodeType === Node.TEXT_NODE && !n.textContent.trim()) continue;
+          log({ category: "DOM", type: "node added", target: describeNode(n), detail: `parent=${describeNode(m.target)}${n.shadowRoot ? " (open shadowRoot)" : ""}${n instanceof Element && n.localName === "style" ? " css=" + fmt(n.textContent) : ""}`, foreign: isForeign(n), kind: "dom" });
+        }
+        for (const n of m.removedNodes) {
+          if (n.nodeType === Node.TEXT_NODE && !n.textContent.trim()) continue;
+          log({ category: "DOM", type: "node removed", target: describeNode(n), detail: `parent=${describeNode(m.target)}`, foreign: isForeign(n), kind: "dom" });
+        }
+      } else if (m.type === "attributes") {
+        log({ category: "DOM", type: "attribute changed", target: describeNode(m.target), detail: `${m.attributeName}=${fmt(m.target.getAttribute(m.attributeName) ?? "(removed)")}`, foreign: isForeign(m.target), kind: "dom" });
+      }
+    }
+  }).observe(document, { childList: true, subtree: true, attributes: true });
+
+  /* ------------------------------------------------------------------
+   * 4. Network resources loaded by this document (fonts, scripts, images,
+   *    fetch/XHR). Requests made by an extension's background are NOT
+   *    visible here — only what the page itself loads.
+   * ------------------------------------------------------------------ */
+  try {
+    new PerformanceObserver((list) => {
+      for (const r of list.getEntries()) log({ category: "Network", type: "resource: " + r.initiatorType, target: "", detail: r.name, kind: "net" });
+    }).observe({ type: "resource", buffered: true });
+  } catch (_) {}
+
+  /* ------------------------------------------------------------------
+   * 5. New global variables on window (something injected into the page's
+   *    JavaScript world). Checked once a second.
+   * ------------------------------------------------------------------ */
+  const knownGlobals = new Set(Object.getOwnPropertyNames(window));
+  setInterval(() => {
+    for (const k of Object.getOwnPropertyNames(window)) {
+      if (!knownGlobals.has(k)) { knownGlobals.add(k); log({ category: "Globals", type: "new global", target: "window", detail: k, foreign: true }); }
+    }
+  }, 1000);
+
+  /* ------------------------------------------------------------------
+   * Controls
+   * ------------------------------------------------------------------ */
+  const cats = $("categories");
+  for (const c of CATEGORIES) {
+    const label = document.createElement("label");
+    const cb = document.createElement("input");
+    cb.type = "checkbox"; cb.checked = true;
+    cb.addEventListener("change", () => { enabled[c] = cb.checked; });
+    label.append(cb, " " + c);
+    cats.appendChild(label);
+  }
+  $("pause").addEventListener("click", () => { paused = !paused; $("pause").textContent = paused ? "Resume" : "Pause"; render(); });
+  $("clear").addEventListener("click", () => { rowsEl.textContent = ""; entries.length = 0; counts.clear(); total = 0; lastRow = null; lastKey = ""; render(); });
+  $("copy").addEventListener("click", async () => {
+    const text = "time\tcategory\ttype\tphase\ttarget\tdetail\n" + entries.join("\n");
+    try { await navigator.clipboard.writeText(text); $("copy").textContent = "Copied!"; }
+    catch (_) { $("copy").textContent = "Copy failed"; }
+    setTimeout(() => ($("copy").textContent = "Copy log"), 1500);
+  });
+
+  log({ category: "State", type: "monitor started", detail: `listening for ${ALL_TYPES.length} event types on window (capture)`, kind: "state" });
+  render();
+})();
+</script>
+</body>
+</html>

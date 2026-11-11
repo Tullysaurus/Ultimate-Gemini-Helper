@@ -1,139 +1,115 @@
 # Ultimate Gemini Helper (UGH)
 
-> The ultimate free, in-browser ai assistant
+> A free, open-source AI helper that lives in your browser.
 
-The best completely fre&#x65;*&#xA0;*&#x61;nd open-source tool for in-browser ai assistance. Simply select text or images on a webpage, click the icon, and let the ai find the answers for you. This repository contains the full backend code (with an api), sample tampermonkey scripts (with a modified version of [Nyx's Universal Educational Tool Suite](<https://greasyfork.org/en/scripts/550591-universal-educational-tool-suite>) that uses the backend), and support for docker.
+Highlight text or images on any webpage, or drag a box over part of the screen, and get an answer from an AI model. It's a single [Tampermonkey](https://www.tampermonkey.net/) userscript that talks directly to [OpenRouter](https://openrouter.ai) with your own API key. There's no server to host.
 
-## Table of Contents
+## Contents
 
 - [Features](#features)
-
-  - [Backend](#backend)
-  - [User Scripts](#user-scripts)
-- [Upcoming Features](#upcoming-features)
-- [Setup](#setup)
-
-  - [Backend Setup](#backend-setup)
-  - [Client Setup](#client-setup)
+- [Install](#install)
 - [Usage](#usage)
-
-  - [Save your API Key](#save-your-api-key)
-  - [Sample frontend usage](#sample-frontend-usage)
-- [Disclaimer (Skill Issue)](#disclaimer)
+- [Settings](#settings)
+- [Privacy: what websites can see](#privacy-what-websites-can-see)
+- [Event monitor](#event-monitor)
+- [Repository layout](#repository-layout)
+- [Limitations](#limitations)
 
 ## Features
 
-### Backend
+- **Ask about a selection.** Highlight text and/or images, then click the button in the bottom-left corner.
+- **Capture Area.** Press `Alt+Shift+S` (or use the hover menu), drag over any part of the page, and the screenshot is sent to the model.
+  - *Exact* mode (default) uses the browser's tab capture. It asks once per tab to share it, then captures the real pixels, including embedded pages from other sites and LaTeX.
+  - *Fast* mode redraws the page from its HTML without asking. Embedded pages from other sites come out blank, and some content may render imperfectly.
+- **Streaming answers** in a draggable popup, with follow-up questions. Follow-ups include the previous screenshot.
+- **LaTeX rendering.** Math in answers (`\( \)`, `\[ \]`, `$ $`, `$$ $$`) is rendered with KaTeX as MathML. The browser draws MathML itself, so no fonts or stylesheets need to load and a site's security rules can't block it.
+- **Any OpenRouter model.** The default is `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free`, which is free and handles both text and images.
+- **Local cache and history.** Text-only questions are cached, and the last few messages are kept so follow-ups have context. Everything is stored in Tampermonkey's own storage.
 
-> Written with Python using FastAPI
+## Install
 
-- **Gemini Integration**: The backend is built specifically for gemini, and uses the `gemini_webapi` library (<https://pypi.org/project/gemini-webapi/>) to use gemini completely for free without api keys.
-- **Session Management**: Uses either a local SQLite database or cloud PostgreSQL database to store your own api keys (with custom usage limits, basic tracking features, and chat persistance), and cache questions and their responses (to speed up the process for users asking the same questions).
-- **Streaming Responses**: Supports real-time streaming from the AI to provide a smoother user experience.
-- **CORS Enabled**: Fully configured for cross-origin requests from browser-environments.
+1. Install the [Tampermonkey](https://www.tampermonkey.net/) extension (Violentmonkey also works).
+2. Create a new script and paste in the contents of [`tampermonkey/ugh.js`](tampermonkey/ugh.js), or open the raw file and let Tampermonkey install it.
+3. Get an API key at <https://openrouter.ai/keys>. Free models work with a free account.
 
-### User Scripts
-
-> These scripts STRICTLY rely on [Tampermonkey](<https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo>)
-
-- Backend Script ([backend.js](tampermonkey/backend.js))
-
-  - Provides a simple interface to use event listeners to interact with the api on the backend.
-- Sample Frontend Script ([frontend.js (all webpages)](tampermonkey/frontend.js))
-
-  - Sample script for how you can interact with the backend script from the client side. *Make sure to use tampermonkey functions to bypass CORS policies if you want to do this yourself*.
-  - This script will take the place of `uets.js` in the future.
-- Modified version of [Nyx's UETS](<https://greasyfork.org/en/scripts/550591-universal-educational-tool-suite>) ([Universal Educational Tool Suite](tampermonkey/uets.js))
-
-  - A modified version of Nyx's UETS that uses the custom backend 
-  - This is no longer being actively developed to add support for more sites
-
-### Upcoming Features
-
-- **Edpuzzle support**: Add a gui injected into edpuzzles (including embeds) that allows for speed manipulation, automatic question answering, etc.
-- **Canvas integration**: Interface with canvas and better avoid detection.
-
-## Setup
-
-### Backend Setup
-
-1. **Clone the repository**.
-2. **Install [docker-compose](**[**https://docs.docker.com/compose/install/**](https://docs.docker.com/compose/install/)**)**
-3. **Configure environement variables**: Create a `.env` file in the root directory:
-
-```env
-SECURE_1PSID=your_google_1psid
-SECURE_1PSIDTS=your_google_1psidts
-
-CLOUDFLARE_TOKEN=your_cloudflare_tunnel_token # if you're using one
-DATABASE_URL=your_database_url # leave blank if you want to use a local database (please dont do this)
-
-GEMINI_COOKIE_PATH=/app/data/gemini_cookies # Im not sure if this is absolutely needed but it helps for readability
-```
-
-> Refer to the instructions [here](<https://github.com/HanaokaYuzu/Gemini-API?tab=readme-ov-file#authentication>) on how to find secure_1psid and secure_1psidts
->
-> Read the [disclaimer](#disclaimer) for more information on these cookies
-
-4. Execution
-
-If using a cloud server, run:
-
-```shell
-docker-compose up -d --build
-```
-
-to build the docker image and execute it.
-
-If using a home server, use `startup.sh` and create a service that runs
-
-```shell
-sudo startup.sh --refresh
-```
-
-on every restart (this is assuming your home isnt down too often, if it is, remove the `--refresh` argument).
-
-> Both of these implementations rely on cloudflare tunnels to expose themselves to the internet, modify the code as needed to match your usecase (See the [disclaimer](#usecase))
-
-### Client Setup
-
-1. Install and setup the [Tampermonkey](<https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo>) extension (See full instructions [here](<https://gist.github.com/jesterjunk/0344f1a7c1f67f52ffc716b17ee7f240>))
-2. Install the scripts in the [tampermonkey](tampermonkey/) folder
-
-- `backend.js` (Required, does not need modification)
-- `frontend.js` (Optional, works on all sites but has worse UX)
-- `uets.js` (Optional, modified version of [Nyx's UETS](<https://greasyfork.org/en/scripts/550591-universal-educational-tool-suite>))
-
-3. Configure your `serverUrl` in `uets.js` and `apiUrl` in `backend.js`
+On Chrome and Edge, Tampermonkey may also need **"Allow User Scripts"** turned on in the extension's details page.
 
 ## Usage
 
-### Save your API Key
+### Save your API key
 
-1. Navigate to any webpage with all scripts enabled.
-2. Hover over the icon in the bottom left.
-3. Insert your custom API Key into the prompt.
-4. From now on it should be saved permanently.
+1. Open any webpage.
+2. Hover the button in the bottom-left corner to open the menu.
+3. Paste your OpenRouter key and click **Save**.
 
-### Sample Frontend Usage
+The key is stored in Tampermonkey's storage. The settings field only ever shows a shortened hint of it (e.g. `sk-or-v1…abcd`).
 
-1. Navigate to any webpage with `backend.js` and `frontend.js` enabled.
-2. Select any text or images on the page.
-3. Click on the icon in the bottom left.
-4. Wait for your answer(s) to load.
+### Ask a question
 
-## Disclaimer
+- **Selection:** highlight text or images, then click the button.
+- **Screenshot:** press `Alt+Shift+S` (or hover the button, then click **Capture Area**) and drag over the question. Press `Esc` or right-click to cancel.
+- **Follow up:** type in the popup's input box and press Enter.
 
-### Cookies
+## Settings
 
-The code will automatically update the SECURE_1PSID and SECURE_1PSIDTS values if left running (and will store the values of them every 5 minutes), but if you open gemini logged into the same account that the script is running, theres a good chance it will desync these values, and you might have to edit the env to change them.
+All settings are in the hover menu.
 
-The script shouldnt have any cookie errors as long as you dont open the gemini webpage.
+| Setting | Description |
+| --- | --- |
+| OpenRouter API Key | Your key. Leave the field blank to keep the saved key. |
+| Model | Any OpenRouter model ID. Leave it blank for the default. Pick a model that accepts images if you use screenshots. |
+| Screenshot Mode | *Exact* (tab capture, asks once per tab) or *Fast* (no prompt, less accurate). |
+| Clear Chat History & Cache | Clears the saved follow-up context and cached answers. |
 
-### Timing
+## Privacy: what websites can see
 
-Sometimes gemini_webapi takes a significantly longer time than usual to generate a response, the cause of this is still unknown. Only fix is to increase the `timeout` in the `client.init()` function in [ai.py](ai.py).
+The script is built so that websites can't read your key, your questions or the answers, or interfere with them:
 
-### Usecase
+- **Requests.** Calls to OpenRouter and image downloads go through Tampermonkey itself. They aren't visible to the page and aren't affected by its CORS or content-security rules.
+- **Isolated JavaScript world.** The script runs in an isolated world (`@sandbox DOM` / `@inject-into content`). It also saves its own copies of sensitive browser functions at page start, so page code can't intercept them.
+- **Closed shadow root.** The interface is inside a closed shadow root, so page CSS and scripts can't reach it.
+- **Event firewall.** Listeners registered before any page listener block every event aimed at the script's interface (key presses, typed text, paste, mouse and pointer movement, clicks, focus events). The script's own handlers get a private copy.
+- **No `window` events.** Nothing is sent on `window` events.
+- **No focus stealing.** Using the button, menu or capture overlay doesn't move focus off the page. Only clicking into a text field, the dropdown or the answer text does.
 
-I'm a very amateur developer, this might not port well to your usecase, its mainly meant for me and a few close friends. I made this because I dont want to pay a crap ton of money for gemini api calls and also wanted what is essentially questionAI or all those cheating tools in my browser without paying their crazy subscriptions.
+What a page **can** still see:
+
+- The `<ugh-root>` element attached to `<html>`.
+- That focus moved to `<ugh-root>` when you click into one of the script's text fields. The page's own `blur`, `focusout` and `mouseout` events show `<ugh-root>` as their `relatedTarget`.
+- The `Alt` and `Shift` presses of the `Alt+Shift+S` hotkey. The `S` is consumed.
+- The browser's tab-share prompt in Exact mode, which may briefly take focus.
+- In Fast mode, html2canvas briefly adds a copy of the page in an iframe.
+
+Use the [event monitor](#event-monitor) to check all of this yourself.
+
+## Event monitor
+
+[`tools/event-monitor.html`](tools/event-monitor.html) is a standalone test page that logs everything an ordinary web page can observe, so you can see exactly what the script exposes:
+
+- **DOM events.** Every event type the browser supports, listened for on `window` before anything else: keys, typed text, clipboard, mouse, pointer, touch, wheel, scroll, focus and blur (including on `div`s), drag, resize, visibility, page lifecycle, messages and more. Each row shows the target, the event details and `isTrusted`.
+- **Live state.** `document.hasFocus()`, `activeElement`, visibility, user activation, window and screen size and position, scroll position, the current selection and the elements under `<html>`.
+- **DOM mutations.** Elements and styles added or removed anywhere in the document.
+- **Network.** Resources the page itself loads, such as fonts and scripts.
+- **New globals** added to `window`.
+
+Rows are highlighted in yellow when their target isn't part of the page, such as an injected element. You can filter by category or text, show only foreign targets, collapse repeated rows, pause the log, or copy it.
+
+To try it, open the file in a browser with the script enabled. For `file://` pages, turn on **"Allow access to file URLs"** in Tampermonkey's extension settings, or serve the folder locally (for example `python -m http.server`) and open `http://localhost:8000/tools/event-monitor.html`.
+
+## Repository layout
+
+```text
+tampermonkey/ugh.js        the userscript
+tools/event-monitor.html   page that logs what a website can observe
+```
+
+## Limitations
+
+- **Running first isn't guaranteed.** The event firewall relies on the script running before page scripts. Tampermonkey's `document-start` normally does, but it isn't guaranteed in every browser.
+- **Exact mode works best in Chrome and Edge,** which offer "this tab" directly. Other browsers may offer a window or the whole screen instead; the script rejects those and asks you to share the tab.
+- **Copy-protected video can't be captured.** Netflix-style video comes out black.
+- **Free models have limits.** Free OpenRouter models are rate-limited, and reasoning models can take a while to "think" before answering.
+
+## License
+
+GPL-3.0
