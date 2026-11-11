@@ -1,7 +1,7 @@
 """The heads-up display: a click-through, non-activating, always-on-top card in a screen corner.
 
 Styled like the userscript's response popup (white card, grey header, blue answer boxes).
-It never takes focus or mouse input; everything is driven by global Ctrl+Alt hotkeys.
+It never takes focus or mouse input; everything is driven by the global menu key.
 The answer boxes are pinned at the top; only the explanation below them scrolls.
 """
 
@@ -54,6 +54,21 @@ QTextBrowser {{
 }}
 """
 
+
+
+def menu_qss(alpha: float) -> str:
+    return f"""
+#menucard {{
+    background: {_rgba("#ffffff", alpha)}; border: 1px solid {_rgba("#dadce0", min(1.0, alpha + 0.2))};
+    border-radius: 12px;
+}}
+#menutitle {{ color: #5f6368; font-family: {FONT_FAMILY}; font-size: 9pt; font-weight: 500; }}
+#menukey {{
+    background: {_rgba("#e8f0fe", alpha)}; color: #1967d2; border-radius: 6px; padding: 2px 0;
+    font-family: {FONT_FAMILY}; font-size: 10.5pt; font-weight: 700;
+}}
+#menulabel {{ color: #3c4043; font-family: {FONT_FAMILY}; font-size: 10.5pt; }}
+"""
 
 
 class Spinner(QWidget):
@@ -311,6 +326,77 @@ class Hud(QWidget):
         """Scrolls the explanation only; the answer boxes stay put."""
         bar = self.body.verticalScrollBar()
         bar.setValue(bar.value() + int(self.body.viewport().height() * pages))
+
+
+class ActionMenu(QWidget):
+    """The menu-key popup: a small numbered list next to the HUD. Click-through, never takes focus."""
+
+    def __init__(self):
+        flags = (Qt.WindowType.FramelessWindowHint
+                 | Qt.WindowType.WindowStaysOnTopHint
+                 | Qt.WindowType.Tool
+                 | Qt.WindowType.WindowDoesNotAcceptFocus
+                 | Qt.WindowType.WindowTransparentForInput)
+        super().__init__(None, flags)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+
+        card = QFrame(self)
+        card.setObjectName("menucard")
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.addWidget(card)
+        self._layout = QVBoxLayout(card)
+        self._layout.setContentsMargins(14, 10, 14, 12)
+        self._layout.setSpacing(6)
+        self._rows: list[QWidget] = []
+
+    def set_items(self, title: str, items: list[tuple[str, str]]) -> None:
+        for row in self._rows:
+            self._layout.removeWidget(row)
+            row.deleteLater()
+        self._rows.clear()
+        heading = QLabel(title)
+        heading.setObjectName("menutitle")
+        self._layout.addWidget(heading)
+        self._rows.append(heading)
+        for key, label in items:
+            row = QWidget()
+            rl = QHBoxLayout(row)
+            rl.setContentsMargins(0, 0, 0, 0)
+            rl.setSpacing(10)
+            k = QLabel(key)
+            k.setObjectName("menukey")
+            k.setFixedWidth(22)
+            k.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            t = QLabel(label)
+            t.setObjectName("menulabel")
+            rl.addWidget(k)
+            rl.addWidget(t, 1)
+            self._layout.addWidget(row)
+            self._rows.append(row)
+        self.adjustSize()
+
+    def show_at(self, hud: Hud) -> None:
+        """Beside the HUD (or in its corner when the HUD is hidden)."""
+        self.setStyleSheet(menu_qss(hud.background_alpha()))
+        self.adjustSize()
+        screen = QGuiApplication.primaryScreen().availableGeometry()
+        margin = int(hud.cfg.get("margin", 20))
+        corner = hud.cfg.get("corner", "top-right")
+        left = "left" in corner
+        if hud.isVisible():
+            x = hud.x() + hud.width() + 10 if left else hud.x() - self.width() - 10
+        else:
+            x = screen.left() + margin if left else screen.right() - self.width() - margin + 1
+        y = screen.top() + margin if "top" in corner else screen.bottom() - self.height() - margin + 1
+        self.move(x, y)
+        self.show()
+        winapi.raise_topmost(int(self.winId()))
+
+    def showEvent(self, event) -> None:  # noqa: N802
+        super().showEvent(event)
+        winapi.apply_overlay_styles(int(self.winId()), click_through=True)
 
 
 class StatusDot(QWidget):

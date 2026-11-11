@@ -38,9 +38,6 @@ if IS_WINDOWS:
     _set_pos.restype = wintypes.BOOL
     _get_foreground = _user32.GetForegroundWindow
     _get_foreground.restype = wintypes.HWND
-    _get_async_key_state = _user32.GetAsyncKeyState
-    _get_async_key_state.argtypes = [ctypes.c_int]
-    _get_async_key_state.restype = ctypes.c_short
 
 
 def get_ex_style(hwnd: int) -> int:
@@ -73,8 +70,3 @@ def raise_topmost(hwnd: int) -> None:
 
 def foreground_window() -> int:
     return int(_get_foreground() or 0) if IS_WINDOWS else 0
-
-
-def key_down(vk: int) -> bool:
-    """True if the key is held right now (as far as apps can tell: keys our hook blocked don't count)."""
-    return IS_WINDOWS and bool(_get_async_key_state(vk) & 0x8000)
