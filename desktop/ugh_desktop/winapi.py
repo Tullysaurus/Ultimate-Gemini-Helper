@@ -21,9 +21,6 @@ SWP_NOACTIVATE = 0x0010
 SWP_NOOWNERZORDER = 0x0200
 HWND_TOPMOST = -1
 
-VK_CONTROL = 0x11
-VK_MENU = 0x12  # Alt
-
 if IS_WINDOWS:
     _user32 = ctypes.WinDLL("user32", use_last_error=True)
     if ctypes.sizeof(ctypes.c_void_p) == 8:
@@ -78,8 +75,6 @@ def foreground_window() -> int:
     return int(_get_foreground() or 0) if IS_WINDOWS else 0
 
 
-def ctrl_alt_down() -> bool:
-    """True if Ctrl and Alt (either side) are physically held right now."""
-    if not IS_WINDOWS:
-        return False
-    return bool(_get_async_key_state(VK_CONTROL) & 0x8000) and bool(_get_async_key_state(VK_MENU) & 0x8000)
+def key_down(vk: int) -> bool:
+    """True if the key is held right now (as far as apps can tell: keys our hook blocked don't count)."""
+    return IS_WINDOWS and bool(_get_async_key_state(vk) & 0x8000)

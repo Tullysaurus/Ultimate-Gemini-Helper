@@ -35,7 +35,6 @@ class App(QObject):
         self.job: ai.AnalysisJob | None = None
         self.job_id = 0
         self.selector: RegionSelector | None = None
-        self.hud_wanted = True  # user's show/hide choice
         self.busy_capturing = False
 
         self.bridge = Bridge()
@@ -70,9 +69,8 @@ class App(QObject):
 
     def _build_menu(self) -> QMenu:
         menu = QMenu()
-        menu.addAction("Capture screen\tCtrl+Alt+S", self.capture_screen)
-        menu.addAction("Capture region\tCtrl+Alt+P", self.capture_region)
-        menu.addAction("Show / hide HUD\tCtrl+Alt+H", self.toggle_hud)
+        menu.addAction("Capture screen\tCtrl+Alt+W", self.capture_screen)
+        menu.addAction("Capture region\tCtrl+Alt+S", self.capture_region)
         self.toggle_action = menu.addAction("Hotkeys enabled\tCtrl+Alt+D")
         self.toggle_action.setCheckable(True)
         self.toggle_action.setChecked(self.hotkeys.enabled)
@@ -90,23 +88,19 @@ class App(QObject):
     def _on_enabled_changed(self, on: bool) -> None:
         self.dot.set_enabled(on)
         self.toggle_action.setChecked(on)
-        # Disabling also hides the app (the dot stays); enabling restores the HUD unless it was hidden with Ctrl+Alt+H.
-        if not on:
+        # The HUD is open exactly while the hotkeys are enabled (the dot always stays).
+        if on:
+            self.hud.show()
+        else:
             if self.selector is not None:
                 self.selector.finish(accept=False)
             self.hud.hide()
-        elif self.hud_wanted:
-            self.hud.show()
 
     def scroll_up(self) -> None:
         self.hud.scroll_by(-SCROLL_PAGES)
 
     def scroll_down(self) -> None:
         self.hud.scroll_by(SCROLL_PAGES)
-
-    def toggle_hud(self) -> None:
-        self.hud_wanted = not self.hud.isVisible()
-        self.hud.setVisible(self.hud_wanted)
 
     def _grab_without_hud(self, then) -> None:
         """Hides the HUD (so it isn't in the screenshot), grabs the primary monitor, calls then(image)."""
@@ -156,11 +150,12 @@ class App(QObject):
     def _on_region_closed(self) -> None:
         self.hotkeys.set_grab_escape(False)
         self.selector = None
-        if self.hud_wanted and self.hotkeys.enabled:
+        if self.hotkeys.enabled:
             self.hud.show()
 
     def _show_hud(self) -> None:
-        self.hud_wanted = True
+        """Opening the HUD (e.g. for a tray capture's answer) also re-enables the hotkeys."""
+        self.hotkeys.set_enabled(True)
         self.hud.show()
 
     # ------------------------------------------------------------------ AI

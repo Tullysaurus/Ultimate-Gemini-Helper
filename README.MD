@@ -20,11 +20,11 @@ There's also a [Windows desktop version](#desktop-app-windows): a small always-o
 
 ## Desktop app (Windows)
 
-[`desktop/`](desktop/) is a Python/PyQt6 app for when the question isn't in a browser. It shows a small panel (the HUD) in a corner of your screen, styled like the userscript's popup. Press `Ctrl+Alt+S` to screenshot your primary monitor, or `Ctrl+Alt+P` to drag a box over part of it, and the answer streams into the panel.
+[`desktop/`](desktop/) is a Python/PyQt6 app for when the question isn't in a browser. It shows a small panel (the HUD) in a corner of your screen, styled like the userscript's popup. Press `Ctrl+Alt+W` to screenshot your primary monitor, or `Ctrl+Alt+S` to drag a box over part of it, and the answer streams into the panel.
 
 - **Stays out of the way.** The panel is always on top, doesn't take keyboard focus, and lets clicks pass through to whatever is underneath. It stays visible over borderless-fullscreen apps, but not over exclusive-fullscreen games.
 - **Screenshots** are taken with [mss](https://github.com/BoboTiG/python-mss): no capture sound and no permission prompt. The panel hides itself for the moment of the capture so it isn't in the image.
-- **Ctrl+Alt hotkeys** control everything. Keys are read with a global hook from the [keyboard](https://github.com/boppreh/keyboard) package, which consumes the hotkeys so they never reach the app you're in.
+- **Ctrl+Alt hotkeys** control everything. Keys are read with a Windows low-level keyboard hook, which consumes the hotkeys so they never reach the app you're in.
 - **LaTeX** in answers is rendered with matplotlib's math renderer. Formulas it can't handle are shown as source.
 - **API key** is stored in Windows Credential Manager. Everything else is in `%APPDATA%\UGH\config.json`.
 
@@ -53,15 +53,14 @@ Add `-Fast` for a folder build (`desktop\dist\UGH\UGH.exe`) that builds and star
 
 | Key | Action |
 | --- | --- |
-| `Ctrl+Alt+S` | Capture the whole primary monitor and ask |
-| `Ctrl+Alt+P` | Drag-select an area and ask (`Esc` or right-click cancels) |
-| `Ctrl+Alt+H` | Show or hide the HUD |
+| `Ctrl+Alt+W` | Capture the whole primary monitor and ask |
+| `Ctrl+Alt+S` | Drag-select an area and ask (`Esc` or right-click cancels) |
 | `Ctrl+Alt+Up` / `Ctrl+Alt+Down` | Scroll the explanation up / down (hold to keep scrolling; the answer stays pinned at the top) |
-| `Ctrl+Alt+D` | Enable / disable all the other hotkeys (always works). Disabling also hides the HUD; enabling brings it back |
+| `Ctrl+Alt+D` | Open / close the app: enabling shows the HUD and turns the other hotkeys on, disabling hides the HUD and turns them off (always works) |
 
-The letter or arrow key of a hotkey never reaches the app you're in; `Ctrl` and `Alt` themselves do, since they're also part of every other shortcut. While the hotkeys are disabled, those combinations pass through to apps normally.
+No part of a hotkey reaches the app you're in, not even `Ctrl` and `Alt`: while the hotkeys are enabled, `Ctrl`/`Alt` presses are held back until it's clear whether a hotkey follows. If something else follows (another key, a click or the mouse wheel), the held-back presses are sent first, so `Ctrl+Z`, `Ctrl+click`, `Ctrl+scroll` and so on work as usual. A `Ctrl` or `Alt` released on its own is sent then too, so tapping `Alt` still opens menus. The catch is that an app sees a *held* `Ctrl` or `Alt` only once you press something else or let go, so things like "hold Ctrl to crouch" in games are delayed. Disable the hotkeys (`Ctrl+Alt+D`) to turn the holding back off. While the hotkeys are disabled, `Ctrl` and `Alt` are never held back and the hotkey combinations pass through to apps normally. `Ctrl`/`Alt` pressed while `Shift` or `Win` is already down, and `AltGr`, are never held back either.
 
-A tiny dot in the top-right corner of the screen shows the state: green when the hotkeys are enabled, red when disabled. It stays visible when the HUD is hidden (it only disappears for the instant of a capture). The hotkeys start enabled every time the app launches, and can also be toggled from the tray menu.
+A tiny dot in the top-right corner of the screen shows the state: green when the hotkeys are enabled, red when disabled. It stays visible while the app is closed (it only disappears for the instant of a capture). A capture started from the tray menu while disabled re-enables the app so you can see the answer. The hotkeys start enabled every time the app launches, and can also be toggled from the tray menu.
 
 Change the model, prompt, HUD corner, width and opacity in `config.json` (tray menu → **Open settings file**), then choose **Reload settings**. Each capture is a separate question; there are no follow-ups.
 
@@ -166,7 +165,8 @@ desktop/                   Windows desktop HUD (Python, PyQt6)
     capture.py             mss screen capture
     ai.py                  OpenRouter streaming client
     formatting.py          Markdown + LaTeX -> Qt rich text
-    hotkeys.py             global keyboard hook (Ctrl+Alt hotkeys)
+    hotkeys.py             Ctrl+Alt hotkeys (holds back Ctrl/Alt until a hotkey is ruled out)
+    llhook.py              Win32 low-level keyboard/mouse hooks and SendInput (ctypes)
     winapi.py              Windows window styles (ctypes)
     config.py              settings file and API key storage
     icons.py               app icon
