@@ -1,7 +1,7 @@
 """The heads-up display: a click-through, non-activating, always-on-top card in a screen corner.
 
 Styled like the userscript's response popup (white card, grey header, blue answer boxes).
-It never takes focus or mouse input; everything is driven by the global menu key.
+It never takes focus or mouse input; everything is driven by global Ctrl+Alt hotkeys.
 The answer boxes are pinned at the top; only the explanation below them scrolls.
 """
 
@@ -16,6 +16,13 @@ from . import formatting, winapi
 FONT_FAMILY = "Roboto, 'Segoe UI', Arial, sans-serif"
 BODY_PT = 10.5
 ANSWER_PT = 14
+
+# Hotkeys on/off indicator, pinned to the screen's top-right corner.
+DOT_SIZE = 14     # px, white outer circle
+DOT_INNER = 8     # px, red/green inner circle
+DOT_MARGIN = 6    # px from the screen edges
+DOT_ON = "#1e8e3e"
+DOT_OFF = "#d93025"
 
 def _rgba(hex_rgb: str, alpha: float) -> str:
     r, g, b = (int(hex_rgb[i:i + 2], 16) for i in (1, 3, 5))
@@ -47,21 +54,6 @@ QTextBrowser {{
 }}
 """
 
-
-
-def menu_qss(alpha: float) -> str:
-    return f"""
-#menucard {{
-    background: {_rgba("#ffffff", alpha)}; border: 1px solid {_rgba("#dadce0", min(1.0, alpha + 0.2))};
-    border-radius: 12px;
-}}
-#menutitle {{ color: #5f6368; font-family: {FONT_FAMILY}; font-size: 9pt; font-weight: 500; }}
-#menukey {{
-    background: {_rgba("#e8f0fe", alpha)}; color: #1967d2; border-radius: 6px; padding: 2px 0;
-    font-family: {FONT_FAMILY}; font-size: 10.5pt; font-weight: 700;
-}}
-#menulabel {{ color: #3c4043; font-family: {FONT_FAMILY}; font-size: 10.5pt; }}
-"""
 
 
 class Spinner(QWidget):
@@ -230,6 +222,8 @@ class Hud(QWidget):
         corner = self.cfg.get("corner", "top-right")
         x = screen.left() + margin if "left" in corner else screen.right() - self.width() - margin + 1
         y = screen.top() + margin if "top" in corner else screen.bottom() - height - margin + 1
+        if corner == "top-right":
+            y = max(y, screen.top() + DOT_MARGIN + DOT_SIZE + 6)  # stay clear of the status dot
         self.move(x, y)
 
     # ------------------------------------------------------------------ content
@@ -319,8 +313,11 @@ class Hud(QWidget):
         bar.setValue(bar.value() + int(self.body.viewport().height() * pages))
 
 
-class ActionMenu(QWidget):
-    """The menu-key popup: a small numbered list next to the HUD. Click-through, never takes focus."""
+class StatusDot(QWidget):
+    """Tiny hotkeys on/off indicator: a white circle with a green (on) or red (off) dot inside.
+
+    Click-through, never takes focus, always on top in the screen's top-right corner.
+    """
 
     def __init__(self):
         flags = (Qt.WindowType.FramelessWindowHint
@@ -331,60 +328,34 @@ class ActionMenu(QWidget):
         super().__init__(None, flags)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+        self.setFixedSize(DOT_SIZE, DOT_SIZE)
+        self._on = True
 
-        card = QFrame(self)
-        card.setObjectName("menucard")
-        outer = QVBoxLayout(self)
-        outer.setContentsMargins(0, 0, 0, 0)
-        outer.addWidget(card)
-        self._layout = QVBoxLayout(card)
-        self._layout.setContentsMargins(14, 10, 14, 12)
-        self._layout.setSpacing(6)
-        self._rows: list[QWidget] = []
+        self._topmost_timer = QTimer(self)
+        self._topmost_timer.timeout.connect(lambda: winapi.raise_topmost(int(self.winId())))
+        self._topmost_timer.start(2000)
 
-    def set_items(self, title: str, items: list[tuple[str, str]]) -> None:
-        for row in self._rows:
-            self._layout.removeWidget(row)
-            row.deleteLater()
-        self._rows.clear()
-        heading = QLabel(title)
-        heading.setObjectName("menutitle")
-        self._layout.addWidget(heading)
-        self._rows.append(heading)
-        for key, label in items:
-            row = QWidget()
-            rl = QHBoxLayout(row)
-            rl.setContentsMargins(0, 0, 0, 0)
-            rl.setSpacing(10)
-            k = QLabel(key)
-            k.setObjectName("menukey")
-            k.setFixedWidth(22)
-            k.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            t = QLabel(label)
-            t.setObjectName("menulabel")
-            rl.addWidget(k)
-            rl.addWidget(t, 1)
-            self._layout.addWidget(row)
-            self._rows.append(row)
-        self.adjustSize()
+    def set_enabled(self, on: bool) -> None:
+        self._on = on
+        self.update()
 
-    def show_at(self, hud: Hud) -> None:
-        """Beside the HUD (or in its corner when the HUD is hidden)."""
-        self.setStyleSheet(menu_qss(hud.background_alpha()))
-        self.adjustSize()
+    def place(self) -> None:
         screen = QGuiApplication.primaryScreen().availableGeometry()
-        margin = int(hud.cfg.get("margin", 20))
-        corner = hud.cfg.get("corner", "top-right")
-        left = "left" in corner
-        if hud.isVisible():
-            x = hud.x() + hud.width() + 10 if left else hud.x() - self.width() - 10
-        else:
-            x = screen.left() + margin if left else screen.right() - self.width() - margin + 1
-        y = screen.top() + margin if "top" in corner else screen.bottom() - self.height() - margin + 1
-        self.move(x, y)
-        self.show()
-        winapi.raise_topmost(int(self.winId()))
+        self.move(screen.right() - DOT_SIZE - DOT_MARGIN + 1, screen.top() + DOT_MARGIN)
 
     def showEvent(self, event) -> None:  # noqa: N802
         super().showEvent(event)
-        winapi.apply_overlay_styles(int(self.winId()), click_through=True)
+        hwnd = int(self.winId())
+        winapi.apply_overlay_styles(hwnd, click_through=True)
+        winapi.raise_topmost(hwnd)
+
+    def paintEvent(self, _event) -> None:  # noqa: N802 (Qt naming)
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setPen(QPen(QColor("#dadce0"), 1))  # hairline so it's still visible on white pages
+        p.setBrush(QColor("#ffffff"))
+        p.drawEllipse(QRectF(0.5, 0.5, DOT_SIZE - 1, DOT_SIZE - 1))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QColor(DOT_ON if self._on else DOT_OFF))
+        offset = (DOT_SIZE - DOT_INNER) / 2
+        p.drawEllipse(QRectF(offset, offset, DOT_INNER, DOT_INNER))

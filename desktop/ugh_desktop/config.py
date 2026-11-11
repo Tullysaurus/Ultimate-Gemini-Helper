@@ -40,8 +40,6 @@ Explanation: [Rich Text Explanation]
 DEFAULTS: dict = {
     "model": DEFAULT_MODEL,
     "capture_prompt": "Answer the question(s) shown in the attached screenshot.",
-    "menu_key": "f9",                     # opens the action menu; then press 1-5 (0 cancels)
-    "menu_timeout_seconds": 5,            # menu closes by itself after this long without a choice
     "hud": {
         "corner": "top-right",            # top-left | top-right | bottom-left | bottom-right
         "margin": 20,                     # px from the screen edges
@@ -92,7 +90,8 @@ def load_config() -> dict:
         except (OSError, ValueError):
             user, unreadable = {}, True  # keep the broken file so the user's edits aren't lost
     original = copy.deepcopy(user)
-    user.pop("hotkeys", None)  # per-action hotkeys were replaced by the menu key
+    for obsolete in ("hotkeys", "menu_key", "menu_timeout_seconds"):
+        user.pop(obsolete, None)  # replaced by the fixed Ctrl+Alt hotkeys
     if isinstance(user.get("hud"), dict):
         user["hud"].pop("opacity", None)  # whole-window opacity was removed (background_opacity remains)
     cfg = _merge(DEFAULTS, user)

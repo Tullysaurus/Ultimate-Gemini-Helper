@@ -1,4 +1,4 @@
-"""Application wiring: tray icon, menu key, capture -> AI -> HUD."""
+"""Application wiring: tray icon, Ctrl+Alt hotkeys, capture -> AI -> HUD."""
 
 from __future__ import annotations
 
@@ -10,23 +10,13 @@ from PyQt6.QtGui import QImage
 from PyQt6.QtWidgets import QApplication, QInputDialog, QLineEdit, QMenu, QMessageBox, QSystemTrayIcon
 
 from . import ai, capture, config
-from .hotkeys import HotkeyManager, pretty
-from .hud import ActionMenu, Hud
+from .hotkeys import HINT_TEXT, HotkeyManager
+from .hud import Hud, StatusDot
 from .icons import app_icon
 from .region import RegionSelector
 
-HIDE_BEFORE_CAPTURE_MS = 80  # give the compositor time to remove the HUD/menu before grabbing
+HIDE_BEFORE_CAPTURE_MS = 80  # give the compositor time to remove the HUD/status dot before grabbing
 SCROLL_PAGES = 0.8
-
-# Menu choices: digit -> App method. "0" (and Esc / the menu key again) cancels.
-MENU_CHOICES = {
-    "1": "capture_screen",
-    "2": "capture_region",
-    "3": "toggle_hud",
-    "4": "scroll_up",
-    "5": "scroll_down",
-}
-STICKY_CHOICES = {"4", "5"}  # scrolling keeps the menu open so you can press 4/5 repeatedly
 
 
 class Bridge(QObject):
@@ -54,16 +44,13 @@ class App(QObject):
         self.bridge.done.connect(self._on_done)
         self.bridge.error.connect(self._on_error)
 
-        self.hud = Hud(self.cfg["hud"], self._hint_text())
-        self.menu = ActionMenu()
-        self.menu_timer = QTimer(self)
-        self.menu_timer.setSingleShot(True)
-        self.menu_timer.timeout.connect(lambda: self.hotkeys.close_menu())
+        self.hud = Hud(self.cfg["hud"], HINT_TEXT)
+        self.dot = StatusDot()  # hotkeys on/off; never hidden except for the instant of a capture
         self.hotkeys = HotkeyManager()
-        self.hotkeys.menu_changed.connect(self._on_menu_changed)
-        self.hotkeys.choice.connect(self._on_choice)
+        self.hotkeys.action.connect(lambda name: getattr(self, name)())
+        self.hotkeys.enabled_changed.connect(self._on_enabled_changed)
         self.hotkeys.escape.connect(lambda: self.selector and self.selector.finish(accept=False))
-        self._register_hotkeys()
+        self.hotkeys.start()
 
         self.tray = QSystemTrayIcon(app_icon(), self)
         self.tray.setToolTip("UGH Desktop")
@@ -71,32 +58,25 @@ class App(QObject):
         self.tray.show()
 
         if config.get_api_key():
-            self.hud.show_message(f"Ready. {self._hint_text()}")
+            self.hud.show_message(f"Ready. {HINT_TEXT}")
         else:
             self.hud.show_message("No OpenRouter API key yet. Right-click the UGH tray icon → Set API key… "
                                   "(get one at openrouter.ai/keys).")
         self.hud.show()
+        self.dot.place()
+        self.dot.show()
 
     # ------------------------------------------------------------------ setup
 
-    def _menu_key_label(self) -> str:
-        return pretty(self.cfg.get("menu_key") or "f9")
-
-    def _hint_text(self) -> str:
-        return f"{self._menu_key_label()}: menu · 1 screen · 2 region · 3 hide · 4/5 scroll · 0 cancel"
-
-    def _register_hotkeys(self) -> None:
-        error = self.hotkeys.start(self.cfg.get("menu_key") or "f9", STICKY_CHOICES)
-        if error:
-            self.cfg["menu_key"] = "f9"
-            QMessageBox.warning(None, "UGH Desktop", error)
-
     def _build_menu(self) -> QMenu:
         menu = QMenu()
-        key = self._menu_key_label()
-        menu.addAction(f"Capture screen\t{key}, 1", self.capture_screen)
-        menu.addAction(f"Capture region\t{key}, 2", self.capture_region)
-        menu.addAction(f"Show / hide HUD\t{key}, 3", self.toggle_hud)
+        menu.addAction("Capture screen\tCtrl+Alt+S", self.capture_screen)
+        menu.addAction("Capture region\tCtrl+Alt+P", self.capture_region)
+        menu.addAction("Show / hide HUD\tCtrl+Alt+H", self.toggle_hud)
+        self.toggle_action = menu.addAction("Hotkeys enabled\tCtrl+Alt+D")
+        self.toggle_action.setCheckable(True)
+        self.toggle_action.setChecked(self.hotkeys.enabled)
+        self.toggle_action.triggered.connect(self.hotkeys.set_enabled)
         menu.addSeparator()
         menu.addAction("Set API key…", self.set_api_key)
         menu.addAction("Open settings file", lambda: os.startfile(config.config_path()))  # noqa: S606
@@ -107,37 +87,9 @@ class App(QObject):
 
     # ------------------------------------------------------------------ actions
 
-    def _on_menu_changed(self, is_open: bool) -> None:
-        if not is_open:
-            self.menu_timer.stop()
-            self.menu.hide()
-            return
-        hud_label = "Hide answer panel" if self.hud.isVisible() else "Show answer panel"
-        self.menu.set_items(f"UGH · press a number ({self._menu_key_label()} or 0 to close)", [
-            ("1", "Capture full screen"),
-            ("2", "Capture region"),
-            ("3", hud_label),
-            ("4", "Scroll explanation up"),
-            ("5", "Scroll explanation down"),
-            ("0", "Cancel"),
-        ])
-        self.menu.show_at(self.hud)
-        self._restart_menu_timer()
-
-    def _restart_menu_timer(self) -> None:
-        seconds = float(self.cfg.get("menu_timeout_seconds", 5) or 0)
-        if seconds > 0:
-            self.menu_timer.start(int(seconds * 1000))
-
-    def _on_choice(self, digit: str, repeat: bool) -> None:
-        action = MENU_CHOICES.get(digit)
-        if action is None:
-            return  # 0 / unused digit: the menu already closed
-        if digit in STICKY_CHOICES:
-            self._restart_menu_timer()  # holding 4/5 auto-repeats the scroll
-        elif repeat:
-            return
-        getattr(self, action)()
+    def _on_enabled_changed(self, on: bool) -> None:
+        self.dot.set_enabled(on)
+        self.toggle_action.setChecked(on)
 
     def scroll_up(self) -> None:
         self.hud.scroll_by(-SCROLL_PAGES)
@@ -155,20 +107,21 @@ class App(QObject):
             return
         self.busy_capturing = True
         was_visible = self.hud.isVisible()
-        needs_delay = was_visible or self.menu.isVisible()
-        self.hotkeys.close_menu()
-        self.menu.hide()
+        needs_delay = was_visible or self.dot.isVisible()
         self.hud.hide()
+        self.dot.hide()
 
         def grab() -> None:
             try:
                 image = capture.grab_primary()
             except Exception as exc:  # noqa: BLE001
                 self.busy_capturing = False
+                self.dot.show()
                 self._show_hud()
                 self.hud.show_error(f"Screen capture failed: {exc}")
                 return
             self.busy_capturing = False
+            self.dot.show()
             if was_visible:
                 self.hud.show()
             then(image)
@@ -261,14 +214,13 @@ class App(QObject):
         key, ok = QInputDialog.getText(None, "UGH Desktop – API key", label, QLineEdit.EchoMode.Password)
         if ok and key.strip():
             config.set_api_key(key)
-            self.hud.show_message(f"API key saved. {self._hint_text()}")
+            self.hud.show_message(f"API key saved. {HINT_TEXT}")
             self._show_hud()
 
     def reload_settings(self) -> None:
         self.cfg = config.load_config()
-        self._register_hotkeys()
-        self.hud.hints.setText(self._hint_text())
         self.hud.apply_config(self.cfg["hud"])
+        self.dot.place()
         self.tray.setContextMenu(self._build_menu())
 
     def quit(self) -> None:
@@ -285,7 +237,7 @@ def main() -> int:
     qapp.setQuitOnLastWindowClosed(False)
     qapp.setWindowIcon(app_icon())
 
-    # One instance only: two copies would both react to the menu key.
+    # One instance only: two copies would both react to the hotkeys.
     lock = QLockFile(str(config.config_dir() / "ugh-desktop.lock"))
     if not lock.tryLock(100):
         QMessageBox.information(None, "UGH Desktop", "UGH Desktop is already running (see the tray icon).")

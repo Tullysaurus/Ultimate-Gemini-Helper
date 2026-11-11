@@ -21,6 +21,9 @@ SWP_NOACTIVATE = 0x0010
 SWP_NOOWNERZORDER = 0x0200
 HWND_TOPMOST = -1
 
+VK_CONTROL = 0x11
+VK_MENU = 0x12  # Alt
+
 if IS_WINDOWS:
     _user32 = ctypes.WinDLL("user32", use_last_error=True)
     if ctypes.sizeof(ctypes.c_void_p) == 8:
@@ -38,6 +41,9 @@ if IS_WINDOWS:
     _set_pos.restype = wintypes.BOOL
     _get_foreground = _user32.GetForegroundWindow
     _get_foreground.restype = wintypes.HWND
+    _get_async_key_state = _user32.GetAsyncKeyState
+    _get_async_key_state.argtypes = [ctypes.c_int]
+    _get_async_key_state.restype = ctypes.c_short
 
 
 def get_ex_style(hwnd: int) -> int:
@@ -70,3 +76,10 @@ def raise_topmost(hwnd: int) -> None:
 
 def foreground_window() -> int:
     return int(_get_foreground() or 0) if IS_WINDOWS else 0
+
+
+def ctrl_alt_down() -> bool:
+    """True if Ctrl and Alt (either side) are physically held right now."""
+    if not IS_WINDOWS:
+        return False
+    return bool(_get_async_key_state(VK_CONTROL) & 0x8000) and bool(_get_async_key_state(VK_MENU) & 0x8000)

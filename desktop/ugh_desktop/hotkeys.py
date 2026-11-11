@@ -1,16 +1,20 @@
-"""Global keys via one low-level `keyboard` hook, forwarded to the Qt thread as signals.
+"""Global Ctrl+Alt hotkeys via one low-level `keyboard` hook, forwarded to the Qt thread as signals.
 
-Everything goes through a single menu key (F9 by default):
+  * Ctrl+Alt+S / P / H / Up / Down trigger actions while hotkeys are enabled.
+    The action key is consumed (down, auto-repeat and up), so it never reaches
+    the app you're in. While disabled, those combos pass through untouched.
+  * Ctrl+Alt+D toggles enabled/disabled and is always consumed.
+  * Esc is consumed while the region selector is open.
 
-  * The menu key itself is always consumed (down, auto-repeat and up), so it
-    never reaches the app you're in.
-  * While the menu is open, digit keys (top row and numpad) are consumed too and
-    become menu choices. While it's closed, digits pass through untouched.
-  * Esc is consumed while the menu or the region selector is open.
+Ctrl and Alt themselves are never blocked: the hook can't know a combo is coming
+when they go down, and swallowing them would break every other shortcut.
+
+The modifier state is read with GetAsyncKeyState instead of being tracked from
+hook events, so a missed key-up (e.g. after Win+L) can't leave Ctrl/Alt "stuck"
+and turn plain S/P/H presses into captures.
 
 The hook runs on keyboard's hook thread and must decide synchronously whether
-to block each key, so the open/closed state lives here rather than on the Qt
-thread (a fast "F9 then 1" can't slip a digit through before Qt catches up).
+to block each key, so the enabled state lives here rather than on the Qt thread.
 """
 
 from __future__ import annotations
@@ -20,41 +24,49 @@ import threading
 import keyboard
 from PyQt6.QtCore import QObject, pyqtSignal
 
-DIGITS = frozenset("0123456789")
+from . import winapi
+
+# Key name (as reported by `keyboard`) -> action name.
+ACTION_KEYS = {
+    "s": "capture_region",
+    "w": "capture_screen",
+    "h": "toggle_hud",
+    "up": "scroll_up",
+    "down": "scroll_down",
+}
+TOGGLE_KEY = "d"
+REPEATABLE = frozenset({"scroll_up", "scroll_down"})  # holding the key keeps firing
+
+HINT_TEXT = "Ctrl+Alt + W screen · S region · H hide · ↑/↓ scroll · D on/off"
 
 
 class HotkeyManager(QObject):
     # All emitted from keyboard's hook thread, delivered on the Qt thread (queued, in order).
-    menu_changed = pyqtSignal(bool)  # menu opened (True) / closed (False)
-    choice = pyqtSignal(str, bool)   # digit pressed while the menu was open, is_repeat
-    escape = pyqtSignal()            # Esc while the region selector is open
+    action = pyqtSignal(str)          # one of ACTION_KEYS' values
+    enabled_changed = pyqtSignal(bool)
+    escape = pyqtSignal()             # Esc while the region selector is open
 
     def __init__(self) -> None:
         super().__init__()
         self._lock = threading.Lock()
         self._remove_hook = None
-        self._menu_codes: frozenset[int] = frozenset()
-        self._sticky: frozenset[str] = frozenset()  # choices that keep the menu open (e.g. scrolling)
-        self._menu_open = False
+        self._enabled = True
         self._grab_escape = False
         self._held: set[int] = set()  # scan codes whose key-down we consumed: consume their repeats/up too
+        # Matched by scan code: under Ctrl+Alt (= AltGr on Windows) `keyboard` may report odd key names.
+        self._actions: dict[int, str] = {}
+        self._toggle_codes: frozenset[int] = frozenset()
+        self._esc_codes: frozenset[int] = frozenset()
 
     # ------------------------------------------------------------------ setup
 
-    def start(self, menu_key: str, sticky_choices: set[str]) -> str | None:
-        """(Re)installs the hook. Returns an error message if the menu key is invalid."""
-        error = None
-        try:
-            codes = frozenset(abs(c) for c in keyboard.key_to_scan_codes(menu_key))
-        except (ValueError, TypeError) as exc:
-            error = f"Menu key '{menu_key}' isn't valid ({exc}). Using F9 instead."
-            codes = frozenset(abs(c) for c in keyboard.key_to_scan_codes("f9"))
+    def start(self) -> None:
         with self._lock:
-            self._menu_codes = codes
-            self._sticky = frozenset(sticky_choices)
+            self._actions = {code: action for key, action in ACTION_KEYS.items() for code in _codes(key)}
+            self._toggle_codes = _codes(TOGGLE_KEY)
+            self._esc_codes = _codes("esc")
         if self._remove_hook is None:
             self._remove_hook = keyboard.hook(self._on_key, suppress=True)
-        return error
 
     def stop(self) -> None:
         if self._remove_hook is not None:
@@ -67,14 +79,14 @@ class HotkeyManager(QObject):
     # ------------------------------------------------------------------ state (called from the Qt thread)
 
     @property
-    def menu_open(self) -> bool:
-        return self._menu_open
+    def enabled(self) -> bool:
+        return self._enabled
 
-    def close_menu(self) -> None:
+    def set_enabled(self, on: bool) -> None:
         with self._lock:
-            was_open, self._menu_open = self._menu_open, False
-        if was_open:
-            self.menu_changed.emit(False)
+            changed, self._enabled = self._enabled != on, on
+        if changed:
+            self.enabled_changed.emit(on)
 
     def set_grab_escape(self, on: bool) -> None:
         with self._lock:
@@ -85,7 +97,6 @@ class HotkeyManager(QObject):
     def _on_key(self, event: keyboard.KeyboardEvent) -> bool:
         """Returns False to block the key from reaching other apps."""
         code = abs(event.scan_code or 0)
-        name = (event.name or "").lower()
 
         with self._lock:
             if event.event_type == keyboard.KEY_UP:
@@ -95,34 +106,35 @@ class HotkeyManager(QObject):
                 return True
 
             repeat = code in self._held
-
-            if code in self._menu_codes:
-                self._held.add(code)
-                if not repeat:  # holding the key doesn't flicker the menu
-                    self._menu_open = not self._menu_open
-                    self.menu_changed.emit(self._menu_open)
+            if repeat:
+                # Keep consuming a key we grabbed, even if Ctrl/Alt were released mid-hold.
+                action = self._actions.get(code)
+                if self._enabled and action in REPEATABLE and winapi.ctrl_alt_down():
+                    self.action.emit(action)
                 return False
 
-            if name in DIGITS and (self._menu_open or repeat):
+            if code in self._esc_codes and self._grab_escape:
                 self._held.add(code)
-                if self._menu_open:
-                    if name not in self._sticky:
-                        self._menu_open = False
-                        self.menu_changed.emit(False)
-                    self.choice.emit(name, repeat)
+                self.escape.emit()
                 return False
 
-            if name == "esc" and (self._menu_open or self._grab_escape or repeat):
+            if not winapi.ctrl_alt_down():
+                return True
+
+            if code in self._toggle_codes:
                 self._held.add(code)
-                if self._menu_open:
-                    self._menu_open = False
-                    self.menu_changed.emit(False)
-                elif self._grab_escape and not repeat:
-                    self.escape.emit()
+                self._enabled = not self._enabled
+                self.enabled_changed.emit(self._enabled)
+                return False
+
+            if self._enabled and code in self._actions:
+                self._held.add(code)
+                self.action.emit(self._actions[code])
                 return False
 
         return True
 
 
-def pretty(combo: str) -> str:
-    return "+".join(part.strip().capitalize() for part in combo.split("+")) if combo else ""
+def _codes(key: str) -> frozenset[int]:
+    """The key's primary scan code in the current layout (later entries are e.g. media keys)."""
+    return frozenset({abs(keyboard.key_to_scan_codes(key)[0])})
