@@ -57,7 +57,7 @@ Add `-Fast` for a folder build (`desktop\dist\UGH\UGH.exe`) that builds and star
 | `Ctrl+Alt+P` | Drag-select an area and ask (`Esc` or right-click cancels) |
 | `Ctrl+Alt+H` | Show or hide the HUD |
 | `Ctrl+Alt+Up` / `Ctrl+Alt+Down` | Scroll the explanation up / down (hold to keep scrolling; the answer stays pinned at the top) |
-| `Ctrl+Alt+D` | Enable / disable all the other hotkeys (always works) |
+| `Ctrl+Alt+D` | Enable / disable all the other hotkeys (always works). Disabling also hides the HUD; enabling brings it back |
 
 The letter or arrow key of a hotkey never reaches the app you're in; `Ctrl` and `Alt` themselves do, since they're also part of every other shortcut. While the hotkeys are disabled, those combinations pass through to apps normally.
 

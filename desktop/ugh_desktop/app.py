@@ -90,6 +90,13 @@ class App(QObject):
     def _on_enabled_changed(self, on: bool) -> None:
         self.dot.set_enabled(on)
         self.toggle_action.setChecked(on)
+        # Disabling also hides the app (the dot stays); enabling restores the HUD unless it was hidden with Ctrl+Alt+H.
+        if not on:
+            if self.selector is not None:
+                self.selector.finish(accept=False)
+            self.hud.hide()
+        elif self.hud_wanted:
+            self.hud.show()
 
     def scroll_up(self) -> None:
         self.hud.scroll_by(-SCROLL_PAGES)
@@ -149,7 +156,7 @@ class App(QObject):
     def _on_region_closed(self) -> None:
         self.hotkeys.set_grab_escape(False)
         self.selector = None
-        if self.hud_wanted:
+        if self.hud_wanted and self.hotkeys.enabled:
             self.hud.show()
 
     def _show_hud(self) -> None:
