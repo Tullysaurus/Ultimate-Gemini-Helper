@@ -4,8 +4,11 @@
 
 Highlight text or images on any webpage, or drag a box over part of the screen, and get an answer from an AI model. It's a single [Tampermonkey](https://www.tampermonkey.net/) userscript that talks directly to [OpenRouter](https://openrouter.ai) with your own API key. There's no server to host.
 
+There's also a [Windows desktop version](#desktop-app-windows): a small always-on-top panel that answers questions about screenshots of your whole screen, driven by hotkeys.
+
 ## Contents
 
+- [Desktop app (Windows)](#desktop-app-windows)
 - [Features](#features)
 - [Install](#install)
 - [Usage](#usage)
@@ -14,6 +17,49 @@ Highlight text or images on any webpage, or drag a box over part of the screen, 
 - [Event monitor](#event-monitor)
 - [Repository layout](#repository-layout)
 - [Limitations](#limitations)
+
+## Desktop app (Windows)
+
+[`desktop/`](desktop/) is a Python/PyQt6 app for when the question isn't in a browser. It shows a small panel (the HUD) in a corner of your screen, styled like the userscript's popup. Press a hotkey to screenshot your primary monitor, or drag a box over part of it, and the answer streams into the panel.
+
+- **Stays out of the way.** The panel is always on top, doesn't take keyboard focus, and lets clicks pass through to whatever is underneath. It stays visible over borderless-fullscreen apps, but not over exclusive-fullscreen games.
+- **Screenshots** are taken with [mss](https://github.com/BoboTiG/python-mss): no capture sound and no permission prompt. The panel hides itself for the moment of the capture so it isn't in the image.
+- **Hotkeys** control everything. They're registered globally with the [keyboard](https://github.com/boppreh/keyboard) package and consume the final key of each shortcut.
+- **LaTeX** in answers is rendered with matplotlib's math renderer. Formulas it can't handle are shown as source.
+- **API key** is stored in Windows Credential Manager. Everything else is in `%APPDATA%\UGH\config.json`.
+
+### Run it
+
+```powershell
+cd desktop
+python -m venv .venv
+.\.venv\Scripts\pip install -r requirements.txt
+.\.venv\Scripts\python main.py
+```
+
+A UGH icon appears in the system tray. Right-click it, choose **Set API key…**, and paste your OpenRouter key.
+
+To build a single `UGH.exe` (in `desktop\dist\`), run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File desktop\build.ps1
+```
+
+### Hotkeys
+
+| Default | Action |
+| --- | --- |
+| `Ctrl+Alt+Q` | Capture the whole primary monitor and ask |
+| `Ctrl+Alt+W` | Drag-select an area and ask (`Esc` or right-click cancels) |
+| `Ctrl+Alt+H` | Show or hide the HUD |
+| `Ctrl+Alt+Up` / `Ctrl+Alt+Down` | Scroll the answer |
+
+Change the hotkeys, model, prompt, HUD corner, width and opacity in `config.json` (tray menu → **Open settings file**), then choose **Reload settings**. Each capture is a separate question; there are no follow-ups.
+
+### Notes
+
+- **Elevated apps.** Hotkeys don't fire while an app running as administrator is focused, unless UGH also runs as administrator.
+- **Multiple monitors.** Only the primary monitor is captured.
 
 ## Features
 
@@ -101,6 +147,20 @@ To try it, open the file in a browser with the script enabled. For `file://` pag
 ```text
 tampermonkey/ugh.js        the userscript
 tools/event-monitor.html   page that logs what a website can observe
+desktop/                   Windows desktop HUD (Python, PyQt6)
+  main.py                  entry point
+  build.ps1                builds dist\UGH.exe with PyInstaller
+  ugh_desktop/
+    app.py                 tray icon, hotkeys, capture -> AI -> HUD
+    hud.py                 the always-on-top, click-through panel
+    region.py              drag-to-select overlay
+    capture.py             mss screen capture
+    ai.py                  OpenRouter streaming client
+    formatting.py          Markdown + LaTeX -> Qt rich text
+    hotkeys.py             global hotkeys
+    winapi.py              Windows window styles (ctypes)
+    config.py              settings file and API key storage
+    icons.py               app icon
 ```
 
 ## Limitations
