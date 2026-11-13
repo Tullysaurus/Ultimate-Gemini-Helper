@@ -158,7 +158,27 @@ def parse_answers(raw: str) -> list[str]:
     match = ANSWER_RE.search(raw)
     if not match:
         return []
-    return [a.strip() for a in match.group(1).strip().split(" || ") if a.strip()]
+    return [_unwrap(a) for a in _unwrap(match.group(1)).split(" || ") if _unwrap(a)]
+
+
+# Models sometimes copy the template's placeholder brackets or bold the answer: "[3. Paris]", "**3. Paris**".
+# Only unwrapped when the inside is a numbered option, so free-response intervals like "[1, 5]" stay.
+_OPTION = r"(?:\d+\.|[A-Ha-h][.)])\s.*?"
+WRAPPED_RE = re.compile(rf"^(?:\[\s*({_OPTION})\s*\]|\*\*\s*({_OPTION})\s*\*\*)$", re.S)
+
+
+# ...or answer with the option's letter instead of its position: "C. 13.49" -> "3. 13.49".
+LETTER_RE = re.compile(r"^([A-Ha-h])[.)]\s+(?=\S)")
+
+
+def _unwrap(text: str) -> str:
+    text = text.strip()
+    while True:
+        m = WRAPPED_RE.match(text)
+        if not m:
+            break
+        text = (m.group(1) or m.group(2)).strip()
+    return LETTER_RE.sub(lambda m: f"{ord(m.group(1).lower()) - ord('a') + 1}. ", text, count=1)
 
 
 OPTION_NUMBER_RE = re.compile(r"^\s*\d+\.\s+")

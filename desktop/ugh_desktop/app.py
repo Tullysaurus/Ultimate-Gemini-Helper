@@ -407,6 +407,7 @@ class App(QObject):
             ),
             show_thinking_after=float(self.cfg.get("show_thinking_after_seconds", 8)),
             use_tools=bool(self.cfg.get("tools", True)),
+            explanations=bool(self.cfg.get("explanations", True)),
         )
         self.job.start()
 

@@ -18,7 +18,7 @@ from typing import Callable
 import requests
 
 from . import tools
-from .config import SYSTEM_PROMPT
+from .config import NO_EXPLANATION_PROMPT, SYSTEM_PROMPT
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 MAX_TOOL_ROUNDS = 6  # after this many rounds of tool calls the model is told to answer
@@ -92,7 +92,8 @@ class AnalysisJob:
     """One question (possibly several requests). cancel() stops it; callbacks are silenced once cancelled."""
 
     def __init__(self, api_key: str, model: str, prompt: str, get_png: Callable[[], bytes], request_cfg: dict,
-                 callbacks: Callbacks, show_thinking_after: float = -1, use_tools: bool = False):
+                 callbacks: Callbacks, show_thinking_after: float = -1, use_tools: bool = False,
+                 explanations: bool = True):
         self.api_key = api_key
         self.model = model
         self.prompt = prompt
@@ -102,6 +103,7 @@ class AnalysisJob:
         self.cb = callbacks
         self.show_thinking_after = show_thinking_after  # seconds; negative = never
         self.use_tools = use_tools
+        self.explanations = explanations  # False = the model writes only the answer line
         self.tool_log: list[dict] = []
         self._log_text = ""  # reasoning (and pre-answer text) of finished rounds, for the thinking view
         self._started = 0.0
@@ -139,7 +141,11 @@ class AnalysisJob:
 
     def _first_messages(self, with_tools: bool) -> list[dict]:
         image_url = "data:image/png;base64," + base64.b64encode(self.png).decode("ascii")
-        system = SYSTEM_PROMPT + ("\n\n" + tools.TOOLS_PROMPT if with_tools else "")
+        system = SYSTEM_PROMPT
+        if not self.explanations:
+            system += "\n\n" + NO_EXPLANATION_PROMPT
+        if with_tools:
+            system += "\n\n" + tools.TOOLS_PROMPT
         return [
             {"role": "system", "content": system},
             {"role": "user", "content": [
