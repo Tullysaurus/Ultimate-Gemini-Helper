@@ -44,9 +44,14 @@ MATH_PATTERNS = [
     (re.compile(r"\$(?![\s$])([^$\n]+?)(?<!\s)\$(?!\d)"), False),  # $ ... $  (not "$5 and $10")
 ]
 
-ANSWER_RE = re.compile(r"Correct Answer:\s*(.+?)(?=\n\n|\nExplanation:|$)", re.I | re.S)
-EXPLANATION_RE = re.compile(r"Explanation:\s*(.+)", re.I | re.S)
-
+ANSWER_RE = re.compile(
+    r"^[ \t]*Correct Answer:[ \t]*(.*?)(?=^[ \t]*Explanation:[ \t]*|\Z)",
+    re.IGNORECASE | re.DOTALL | re.MULTILINE
+)   
+EXPLANATION_RE = re.compile(
+    r"^[ \t]*Explanation:[ \t]*(.*)",
+    re.IGNORECASE | re.DOTALL | re.MULTILINE
+)
 
 # ---------------------------------------------------------------------------
 # LaTeX -> image (matplotlib mathtext)
@@ -152,13 +157,26 @@ def format_rich_text(text: str, add_math: MathRenderer, color: str) -> str:
     out = re.sub(r"\x00([DI])(\d+)\x00", lambda m: blocks[int(m.group(2))], out)
     return out
 
-
 def parse_answers(raw: str) -> list[str]:
-    """The "Correct Answer:" entries as written (e.g. "3. Anwser"), or [] if there's no answer line yet."""
+    """Extract answers while preserving multiline formatting."""
     match = ANSWER_RE.search(raw)
     if not match:
         return []
-    return [_unwrap(a) for a in _unwrap(match.group(1)).split(" || ") if _unwrap(a)]
+
+    answer = match.group(1).strip()
+    if not answer:
+        return []
+
+    parts = re.split(r"\s+\|\|\s+", answer)
+
+    return [_unwrap(a) for a in parts if a.strip()]
+
+# def parse_answers(raw: str) -> list[str]:
+#     """The "Correct Answer:" entries as written (e.g. "3. Anwser"), or [] if there's no answer line yet."""
+#     match = ANSWER_RE.search(raw)
+#     if not match:
+#         return []
+#     return [_unwrap(a) for a in _unwrap(match.group(1)).split(" || ") if _unwrap(a)]
 
 
 # Models sometimes copy the template's placeholder brackets or bold the answer: "[3. Paris]", "**3. Paris**".
@@ -214,7 +232,7 @@ def format_answer(raw: str, add_math: MathRenderer) -> tuple[str, str]:
     if explanation_match:
         explanation_src = explanation_match.group(1).strip()
     else:
-        explanation_src = ANSWER_RE.sub("", raw).strip()
+        explanation_src = ""
     explanation = format_rich_text(explanation_src, add_math, TEXT_COLOR)
     return boxes, f'<div style="color:{TEXT_COLOR}">{explanation}</div>'
 
