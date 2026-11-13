@@ -73,11 +73,13 @@ Options that can't be used yet (for example, Retry before your first capture) ar
 
 A tiny dot in the top-right corner of the screen shows the state: green when enabled, red when disabled. It stays visible while the app is hidden (it only disappears for the instant of a capture). While disabled, `F9` still opens the menu, but only `9` (enable) and `0` work. The app starts enabled every launch, and can also be toggled from the tray menu.
 
-**Answer format.** For multiple choice, the answer shows the option's position (counted left-to-right, then top-to-bottom) and its text copied exactly, typos included, for example `3. Anwser`. Free-response answers show just the answer, with no explanation.
+**Answer format.** For multiple choice, the answer shows the option's position (counted left-to-right, then top-to-bottom) and its text copied exactly, typos included, for example `3. Anwser`. Free-response answers show just the answer, with no explanation. Set `"explanations": false` to drop the explanation for multiple choice too, so every answer is just the answer line.
 
 Change the menu key (`menu_key`), model, prompt, HUD corner, width and opacity in `config.json` (tray menu → **Open settings file**), then choose **Reload settings**. Each capture is a separate question; there are no follow-ups.
 
 **Long thinking.** If a reasoning model is still thinking `show_thinking_after_seconds` (default 8) after the request was sent, its reasoning is shown live in the panel in grey italics, with the elapsed time in the header, until the answer starts and replaces it. Set it to `0` to always show the reasoning, or `-1` to never show it. Not every model shares its reasoning; for those you'll keep seeing just "Thinking...".
+
+**Calculator tools.** The model can call a built-in calculator instead of doing math in its head: `calculate` (arithmetic, trig in radians or degrees, logs, matrices, and TI-84 style `normalcdf`, `invNorm`, `binompdf`/`binomcdf`, `tcdf`, `invT`, `chi2cdf` and more), `algebra` (solve equations, systems and inequalities, simplify, factor, expand, derivatives, integrals, limits) and `statistics` (1-Var Stats with both sample and population SD, quartiles, and linear/quadratic/exponential/power/logarithmic regression). While it works, the panel lists each calculation and its result above the live reasoning; the answer replaces them when it's ready. The math runs locally with [SymPy](https://www.sympy.org) in a separate background process, so a runaway calculation is stopped after 10 seconds without freezing the app. Expressions are only ever parsed as math, never run as code. Set `"tools": false` to turn this off; models that don't support tool calls are retried without them automatically.
 
 ### Notes
 
@@ -180,6 +182,7 @@ desktop/                   Windows desktop HUD (Python, PyQt6)
     capture.py             mss screen capture
     ai.py                  OpenRouter streaming client
     formatting.py          Markdown + LaTeX -> Qt rich text
+    tools.py               calculator tools for the model (SymPy, statistics), run in a child process
     hotkeys.py             global keyboard hook (menu key + menu choices)
     winapi.py              Windows window styles (ctypes)
     config.py              settings file and API key storage
