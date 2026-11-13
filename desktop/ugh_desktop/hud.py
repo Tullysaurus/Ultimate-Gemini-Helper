@@ -358,6 +358,10 @@ class Hud(QWidget):
         else:
             self.spinner.start()
         answer_html, explanation_html = formatting.format_answer(raw, self._add_math)
+        # No explanation (turned off, or a free-response answer): show the calculations it used instead.
+        # Only once the answer is final, so a streaming explanation doesn't flicker over the list.
+        if final and self._tools and not formatting.has_explanation(raw):
+            explanation_html = formatting.format_tool_calls(self._tools, title="Calculations")
         self._set_html(explanation_html, keep_scroll=not fresh, answer_html=answer_html)
 
     def show_error(self, message: str) -> None:

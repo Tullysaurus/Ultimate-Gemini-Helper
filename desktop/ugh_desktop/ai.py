@@ -73,7 +73,8 @@ def describe_http_error(status: int, body: str) -> str:
     if status == 402:
         return "OpenRouter: insufficient credits for this model."
     if status == 429:
-        return "OpenRouter rate limit hit (free models are limited). Wait a moment and try again."
+        return ("OpenRouter rate limit hit (free models are limited the most). Wait a moment and try again, "
+                "or switch to another model.")
     return f"OpenRouter error {status}" + (f": {detail}" if detail else "")
 
 
@@ -104,6 +105,7 @@ class AnalysisJob:
         self.show_thinking_after = show_thinking_after  # seconds; negative = never
         self.use_tools = use_tools
         self.explanations = explanations  # False = the model writes only the answer line
+        self._effort = request_cfg.get("reasoning_effort", "none")
         self.tool_log: list[dict] = []
         self._log_text = ""  # reasoning (and pre-answer text) of finished rounds, for the thinking view
         self._started = 0.0
@@ -162,7 +164,7 @@ class AnalysisJob:
             "temperature": self.cfg.get("temperature", 0.2),
             "top_p": self.cfg.get("top_p", 0.95),
             "max_tokens": self.cfg.get("max_tokens", 16384),
-            "reasoning": {"effort": self.cfg.get("reasoning_effort", "low")},
+            "reasoning": {"effort": self._effort},
         }
         if with_tools:
             payload["tools"] = tools.TOOLS
@@ -186,6 +188,9 @@ class AnalysisJob:
             if result == "no-tools":  # the model/provider doesn't do tool calls: ask again without them
                 with_tools = False
                 messages = self._first_messages(False)
+                continue
+            if result == "needs-reasoning":  # some models can't turn reasoning off: use the least there is
+                self._effort = "minimal"
                 continue
             if result is None or self.cancelled:
                 return  # error already reported, or cancelled
@@ -266,7 +271,7 @@ class AnalysisJob:
         self.cb.on_thinking(text, int(now - self._started))
 
     def _stream(self, messages: list[dict], with_tools: bool, first: bool) -> _Round | str | None:
-        """One streamed request. Returns the round, "no-tools" (retry without tools), or None (error/cancel)."""
+        """One streamed request. Returns the round, "no-tools" / "needs-reasoning" (retry), or None (error/cancel)."""
         try:
             self._response = requests.post(
                 OPENROUTER_URL,
@@ -286,6 +291,8 @@ class AnalysisJob:
         resp = self._response
         if resp.status_code != 200:
             body = resp.text
+            if resp.status_code == 400 and "reasoning is mandatory" in body.lower() and self._effort == "none":
+                return "needs-reasoning"
             if with_tools and first and resp.status_code in (400, 404) and "tool" in body.lower():
                 return "no-tools"
             self._emit(self.cb.on_error, describe_http_error(resp.status_code, body))

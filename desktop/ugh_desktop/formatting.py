@@ -223,10 +223,20 @@ TOOL_ROWS_MAX = 8  # only the most recent tool calls are listed
 _TOOL_ICONS = {"running": ("◌", "#1a73e8"), "done": ("✓", "#1e8e3e"), "error": ("✗", "#d93025")}
 
 
-def format_tool_calls(entries: list[dict]) -> str:
+def has_explanation(raw: str) -> bool:
+    """Whether the answer has any explanation text (an "Explanation:" section or text beside the answer line)."""
+    match = EXPLANATION_RE.search(raw)
+    text = match.group(1) if match else ANSWER_RE.sub("", raw)
+    return bool(text.strip())
+
+
+def format_tool_calls(entries: list[dict], title: str | None = None) -> str:
     """The calculator calls made so far, one compact row each: icon, what was asked, short result."""
     shown = entries[-TOOL_ROWS_MAX:]
     rows = []
+    if title:
+        rows.append(f'<tr><td colspan="2" style="color:#5f6368; font-weight:600; padding-bottom:4px">'
+                    f'{html.escape(title)}</td></tr>')
     if len(entries) > len(shown):
         rows.append(f'<tr><td></td><td style="color:#80868b">+ {len(entries) - len(shown)} earlier</td></tr>')
     for entry in shown:
