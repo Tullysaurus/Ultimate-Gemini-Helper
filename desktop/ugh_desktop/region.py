@@ -19,7 +19,7 @@ MIN_SIZE = 8  # px; smaller drags count as a cancel
 
 
 class RegionSelector(QWidget):
-    selected = pyqtSignal(QImage)  # cropped screenshot
+    selected = pyqtSignal(QImage, QRect)  # cropped screenshot, crop rect in screenshot pixels
     cancelled = pyqtSignal()
 
     def __init__(self, screenshot: QImage):
@@ -67,7 +67,7 @@ class RegionSelector(QWidget):
             sx = self.screenshot.width() / self.width()
             sy = self.screenshot.height() / self.height()
             crop = QRect(round(rect.x() * sx), round(rect.y() * sy), round(rect.width() * sx), round(rect.height() * sy))
-            self.selected.emit(self.screenshot.copy(crop))
+            self.selected.emit(self.screenshot.copy(crop), crop)
         else:
             self.cancelled.emit()
         self.close()

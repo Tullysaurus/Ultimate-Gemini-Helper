@@ -153,14 +153,34 @@ def format_rich_text(text: str, add_math: MathRenderer, color: str) -> str:
     return out
 
 
+def parse_answers(raw: str) -> list[str]:
+    """The "Correct Answer:" entries as written (e.g. "3. Anwser"), or [] if there's no answer line yet."""
+    match = ANSWER_RE.search(raw)
+    if not match:
+        return []
+    return [a.strip() for a in match.group(1).strip().split(" || ") if a.strip()]
+
+
+OPTION_NUMBER_RE = re.compile(r"^\s*\d+\.\s+")
+EMPHASIS_RE = re.compile(r"\*\*(.+?)\*\*|(?<!\*)\*(?!\s)(.+?)(?<!\s)\*(?!\*)")
+
+
+def copyable_answer(raw: str) -> str:
+    """The answer(s) for the clipboard: no option number ("3. "), no Markdown emphasis; one per line."""
+    lines = []
+    for answer in parse_answers(raw):
+        answer = OPTION_NUMBER_RE.sub("", answer, count=1)
+        answer = EMPHASIS_RE.sub(lambda m: m.group(1) or m.group(2), answer)
+        lines.append(answer)
+    return "\n".join(lines)
+
+
 def format_answer(raw: str, add_math: MathRenderer) -> tuple[str, str]:
     """(answer boxes, explanation) HTML. The HUD pins the first and scrolls the second."""
-    answer_match = ANSWER_RE.search(raw)
     explanation_match = EXPLANATION_RE.search(raw)
 
-    if answer_match:
-        answers = [a.strip() for a in answer_match.group(1).strip().split(" || ") if a.strip()]
-    else:
+    answers = parse_answers(raw)
+    if not answers:
         answers = ["Analyzing..." if len(raw) < 100 else "Analysis Complete"]
 
     boxes = "".join(

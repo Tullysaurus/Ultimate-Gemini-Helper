@@ -24,7 +24,7 @@ There's also a [Windows desktop version](#desktop-app-windows): a small always-o
 
 - **Stays out of the way.** The panel is always on top, doesn't take keyboard focus, and lets clicks pass through to whatever is underneath. It stays visible over borderless-fullscreen apps, but not over exclusive-fullscreen games.
 - **Screenshots** are taken with [mss](https://github.com/BoboTiG/python-mss): no capture sound and no permission prompt. The panel hides itself for the moment of the capture so it isn't in the image.
-- **One key** controls everything: `F9` opens a numbered menu. Keys are read with a global hook from the [keyboard](https://github.com/boppreh/keyboard) package, which consumes `F9` and, only while the menu is open, the number keys.
+- **One key** controls everything: `F9` opens a numbered menu. Keys are read with a global hook from the [keyboard](https://github.com/boppreh/keyboard) package, which consumes `F9` and, only while the menu is open, the number and navigation keys.
 - **LaTeX** in answers is rendered with matplotlib's math renderer. Formulas it can't handle are shown as source.
 - **API key** is stored in Windows Credential Manager. Everything else is in `%APPDATA%\UGH\config.json`.
 
@@ -51,19 +51,29 @@ Add `-Fast` for a folder build (`desktop\dist\UGH\UGH.exe`) that builds and star
 
 ### Hotkeys
 
-Press `F9` to open the action menu, then press a number:
+Press `F9` to open the action menu, then press a key:
 
 | Key | Action |
 | --- | --- |
 | `1` | Capture the whole primary monitor and ask |
 | `2` | Drag-select an area and ask (`Esc` or right-click cancels) |
-| `3` | Disable and hide the app; press `F9`, `3` again to enable and show it |
-| `4` / `5` | Scroll the explanation up / down (the answer stays pinned at the top) |
+| `3` | Recapture the last region: a fresh screenshot of the same box (handy when the question is always in the same place) |
+| `4` | Retry: send the last image again (after an error or a bad answer) |
+| `5` | Copy the answer to the clipboard, without the option number (`3. Anwser` copies as `Anwser`; several answers go on separate lines) |
+| `6` | Hide / show the answer panel (the app stays enabled; the next capture or scroll shows it again) |
+| `↑` / `↓` | Scroll the explanation (hold to repeat; the answer stays pinned at the top) |
+| `PgUp` / `PgDn`, `Home` / `End` | Scroll a page / jump to the top or bottom |
+| `Backspace` | Stop the answer that's being written (only while one is) |
+| `9` | Disable and hide the app; press `F9`, `9` again to enable and show it |
 | `0` | Close the menu (so do `Esc` and `F9`) |
 
-The menu stays open after `4`/`5` so you can keep scrolling (holding the key repeats), and closes by itself after 5 seconds without a choice. `F9` never reaches the app you're in. Number keys are only consumed while the menu is open; otherwise they pass through normally.
+**Double-tap `F9`** to repeat your last capture (full screen, region, or recapture region) without opening the menu. Set `double_tap_ms` to `0` to turn this off.
 
-A tiny dot in the top-right corner of the screen shows the state: green when enabled, red when disabled. It stays visible while the app is hidden (it only disappears for the instant of a capture). While disabled, `F9` still opens the menu, but only `3` (enable) and `0` work. The app starts enabled every launch, and can also be toggled from the tray menu.
+Options that can't be used yet (for example, Retry before your first capture) are greyed out. After you scroll, the menu shrinks to a small reminder strip and stays open for 10 seconds, so you can keep reading and scrolling. Otherwise it closes by itself after 5 seconds without a choice. `F9` never reaches the app you're in. The number, arrow, Page Up/Down, Home/End and Backspace keys are only consumed while the menu is open; otherwise they pass through normally.
+
+A tiny dot in the top-right corner of the screen shows the state: green when enabled, red when disabled. It stays visible while the app is hidden (it only disappears for the instant of a capture). While disabled, `F9` still opens the menu, but only `9` (enable) and `0` work. The app starts enabled every launch, and can also be toggled from the tray menu.
+
+**Answer format.** For multiple choice, the answer shows the option's position (counted left-to-right, then top-to-bottom) and its text copied exactly, typos included, for example `3. Anwser`. Free-response answers show just the answer, with no explanation.
 
 Change the menu key (`menu_key`), model, prompt, HUD corner, width and opacity in `config.json` (tray menu → **Open settings file**), then choose **Reload settings**. Each capture is a separate question; there are no follow-ups.
 

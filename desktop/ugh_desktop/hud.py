@@ -64,10 +64,12 @@ def menu_qss(alpha: float) -> str:
 }}
 #menutitle {{ color: #5f6368; font-family: {FONT_FAMILY}; font-size: 9pt; font-weight: 500; }}
 #menukey {{
-    background: {_rgba("#e8f0fe", alpha)}; color: #1967d2; border-radius: 6px; padding: 2px 0;
+    background: {_rgba("#e8f0fe", alpha)}; color: #1967d2; border-radius: 6px; padding: 2px 5px;
     font-family: {FONT_FAMILY}; font-size: 10.5pt; font-weight: 700;
 }}
 #menulabel {{ color: #3c4043; font-family: {FONT_FAMILY}; font-size: 10.5pt; }}
+#menukey[off="true"] {{ background: {_rgba("#f1f3f4", alpha)}; color: #9aa0a6; }}
+#menulabel[off="true"] {{ color: #9aa0a6; }}
 """
 
 
@@ -301,7 +303,7 @@ class Hud(QWidget):
             self._set_html(formatting.format_message(status, "#5f6368"), keep_scroll=False)
 
     def show_thinking(self, text: str, seconds: int) -> None:
-        """Live reasoning in the body; follows the newest text unless scrolled up (4)."""
+        """Live reasoning in the body; follows the newest text unless scrolled up."""
         self.status.setText(f"Thinking... {seconds}s")
         self.spinner.start()
         bar = self.body.verticalScrollBar()
@@ -344,6 +346,10 @@ class Hud(QWidget):
         bar = self.body.verticalScrollBar()
         bar.setValue(bar.value() + int(self.body.viewport().height() * pages))
 
+    def scroll_to_end(self, bottom: bool) -> None:
+        bar = self.body.verticalScrollBar()
+        bar.setValue(bar.maximum() if bottom else bar.minimum())
+
 
 class ActionMenu(QWidget):
     """The menu-key popup: a small numbered list next to the HUD. Click-through, never takes focus."""
@@ -367,27 +373,33 @@ class ActionMenu(QWidget):
         self._layout.setContentsMargins(14, 10, 14, 12)
         self._layout.setSpacing(6)
         self._rows: list[QWidget] = []
+        self._keys: list[QLabel] = []
 
-    def set_items(self, title: str, items: list[tuple[str, str]]) -> None:
+    def set_items(self, title: str, items: list[tuple[str, str] | tuple[str, str, bool]]) -> None:
+        """Rows of (key, label[, available]); unavailable rows are greyed out."""
         for row in self._rows:
             self._layout.removeWidget(row)
             row.deleteLater()
         self._rows.clear()
+        self._keys.clear()
         heading = QLabel(title)
         heading.setObjectName("menutitle")
         self._layout.addWidget(heading)
         self._rows.append(heading)
-        for key, label in items:
+        for key, label, *rest in items:
+            off = "true" if rest and not rest[0] else "false"
             row = QWidget()
             rl = QHBoxLayout(row)
             rl.setContentsMargins(0, 0, 0, 0)
             rl.setSpacing(10)
             k = QLabel(key)
             k.setObjectName("menukey")
-            k.setFixedWidth(22)
+            k.setProperty("off", off)
+            self._keys.append(k)
             k.setAlignment(Qt.AlignmentFlag.AlignCenter)
             t = QLabel(label)
             t.setObjectName("menulabel")
+            t.setProperty("off", off)
             rl.addWidget(k)
             rl.addWidget(t, 1)
             self._layout.addWidget(row)
@@ -397,6 +409,13 @@ class ActionMenu(QWidget):
     def show_at(self, hud: Hud) -> None:
         """Beside the HUD (or in its corner when the HUD is hidden)."""
         self.setStyleSheet(menu_qss(hud.background_alpha()))
+        # Same width for every key badge (after styling, which sets the padding) so the labels line up.
+        for k in self._keys:
+            k.setMinimumWidth(0)
+            k.ensurePolished()
+        width = max([22] + [k.sizeHint().width() for k in self._keys])
+        for k in self._keys:
+            k.setMinimumWidth(width)
         self.adjustSize()
         screen = QGuiApplication.primaryScreen().availableGeometry()
         margin = int(hud.cfg.get("margin", 20))

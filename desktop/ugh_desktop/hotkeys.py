@@ -4,8 +4,11 @@ Everything goes through a single menu key (F9 by default):
 
   * The menu key itself is always consumed (down, auto-repeat and up), so it
     never reaches the app you're in.
-  * While the menu is open, digit keys (top row and numpad) are consumed too and
-    become menu choices. While it's closed, digits pass through untouched.
+  * While the menu is open, digit keys (top row and numpad) and the navigation
+    keys (arrows, Page Up/Down, Home/End, Backspace) are consumed too and become
+    menu choices. While it's closed, they all pass through untouched.
+  * Pressing the menu key twice quickly (a double tap) closes the menu again and
+    emits `quick` instead (the app repeats the last capture).
   * Esc is consumed while the menu or the region selector is open.
 
 The hook runs on keyboard's hook thread and must decide synchronously whether
@@ -16,17 +19,21 @@ thread (a fast "F9 then 1" can't slip a digit through before Qt catches up).
 from __future__ import annotations
 
 import threading
+import time
 
 import keyboard
 from PyQt6.QtCore import QObject, pyqtSignal
 
 DIGITS = frozenset("0123456789")
+NAV_KEYS = frozenset({"up", "down", "page up", "page down", "home", "end", "backspace"})
+MENU_KEYS = DIGITS | NAV_KEYS  # key names (as `keyboard` reports them) that are menu choices
 
 
 class HotkeyManager(QObject):
     # All emitted from keyboard's hook thread, delivered on the Qt thread (queued, in order).
     menu_changed = pyqtSignal(bool)  # menu opened (True) / closed (False)
-    choice = pyqtSignal(str, bool)   # digit pressed while the menu was open, is_repeat
+    choice = pyqtSignal(str, bool)   # menu key name (digit / "up" / ...) pressed while the menu was open, is_repeat
+    quick = pyqtSignal()             # menu key double-tapped
     escape = pyqtSignal()            # Esc while the region selector is open
 
     def __init__(self) -> None:
@@ -36,12 +43,14 @@ class HotkeyManager(QObject):
         self._menu_codes: frozenset[int] = frozenset()
         self._sticky: frozenset[str] = frozenset()  # choices that keep the menu open (e.g. scrolling)
         self._menu_open = False
+        self._opened_at = 0.0         # time.monotonic() of the last menu open, for double-tap detection
+        self._double_tap = 0.0        # seconds; 0 disables the double tap
         self._grab_escape = False
         self._held: set[int] = set()  # scan codes whose key-down we consumed: consume their repeats/up too
 
     # ------------------------------------------------------------------ setup
 
-    def start(self, menu_key: str, sticky_choices: set[str]) -> str | None:
+    def start(self, menu_key: str, sticky_choices: set[str], double_tap_ms: float = 0) -> str | None:
         """(Re)installs the hook. Returns an error message if the menu key is invalid."""
         error = None
         try:
@@ -52,6 +61,7 @@ class HotkeyManager(QObject):
         with self._lock:
             self._menu_codes = codes
             self._sticky = frozenset(sticky_choices)
+            self._double_tap = max(0.0, float(double_tap_ms or 0)) / 1000
         if self._remove_hook is None:
             self._remove_hook = keyboard.hook(self._on_key, suppress=True)
         return error
@@ -99,11 +109,17 @@ class HotkeyManager(QObject):
             if code in self._menu_codes:
                 self._held.add(code)
                 if not repeat:  # holding the key doesn't flicker the menu
+                    now = time.monotonic()
+                    double = self._menu_open and now - self._opened_at < self._double_tap
                     self._menu_open = not self._menu_open
+                    if self._menu_open:
+                        self._opened_at = now
                     self.menu_changed.emit(self._menu_open)
+                    if double:
+                        self.quick.emit()
                 return False
 
-            if name in DIGITS and (self._menu_open or repeat):
+            if name in MENU_KEYS and (self._menu_open or repeat):
                 self._held.add(code)
                 if self._menu_open:
                     if name not in self._sticky:
