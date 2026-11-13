@@ -33,6 +33,7 @@ class Callbacks:
     on_error: Callable[[str], None]       # user-facing error message
     on_thinking: Callable[[str, int], None] | None = None  # reasoning so far, seconds since the request started
     on_tools: Callable[[list[dict]], None] | None = None   # tool calls so far: {"label", "status", "summary"}
+    on_switch: Callable[[str, str], None] | None = None    # (next model, why the previous one failed)
 
 
 THINKING_EMIT_INTERVAL = 0.25  # s; throttles HUD updates while reasoning streams in
@@ -78,6 +79,25 @@ def describe_http_error(status: int, body: str) -> str:
     return f"OpenRouter error {status}" + (f": {detail}" if detail else "")
 
 
+SHORT_HTTP_REASONS = {402: "out of credits", 404: "model unavailable", 408: "timed out", 429: "rate limited",
+                      500: "server error", 502: "provider down", 503: "provider unavailable", 524: "timed out",
+                      529: "provider overloaded"}
+
+
+def short_model_name(model: str) -> str:
+    """'anthropic/claude-haiku-5.5:free' -> 'claude-haiku-5.5'."""
+    return model.rsplit("/", 1)[-1].split(":", 1)[0]
+
+
+class _Failure:
+    """A model failed to answer. `fallback`: worth trying the next model. `short`: reason for the HUD."""
+
+    def __init__(self, message: str, fallback: bool = True, short: str = "failed"):
+        self.message = message
+        self.fallback = fallback
+        self.short = short
+
+
 class _Round:
     """What one streamed reply contained."""
 
@@ -92,11 +112,14 @@ class _Round:
 class AnalysisJob:
     """One question (possibly several requests). cancel() stops it; callbacks are silenced once cancelled."""
 
-    def __init__(self, api_key: str, model: str, prompt: str, get_png: Callable[[], bytes], request_cfg: dict,
-                 callbacks: Callbacks, show_thinking_after: float = -1, use_tools: bool = False,
+    def __init__(self, api_key: str, models: str | list[str], prompt: str, get_png: Callable[[], bytes],
+                 request_cfg: dict, callbacks: Callbacks, show_thinking_after: float = -1, use_tools: bool = False,
                  explanations: bool = True):
         self.api_key = api_key
-        self.model = model
+        # Tried in order: the first that answers wins; the others are fallbacks for errors and rate limits.
+        self.models = [models] if isinstance(models, str) else [m for m in models if m]
+        self.model = self.models[0]
+        self.used_model: str | None = None  # the model that answered (set before on_done)
         self.prompt = prompt
         self.get_png = get_png  # PNG encoding runs on the worker thread, not the UI thread
         self.png = b""
@@ -179,6 +202,29 @@ class AnalysisJob:
         if self.cancelled:
             return
         self._started = time.monotonic()
+
+        failures: list[str] = []
+        for i, model in enumerate(self.models):
+            if i:  # start over on the next model with a clean slate
+                if self.cb.on_switch and not self.cancelled:
+                    self.cb.on_switch(model, failures[-1])
+                self.tool_log, self._log_text, self._thinking_shown = [], "", False
+                self._effort = self.cfg.get("reasoning_effort", "none")
+            self.model = model
+            result = self._attempt()
+            if result is None or self.cancelled:
+                return  # answered, or cancelled
+            failures.append(result.short)
+            if not result.fallback or i == len(self.models) - 1:
+                tried = ""
+                if len(failures) > 1:
+                    tried = " (tried " + ", ".join(f"{short_model_name(m)}: {f}" for m, f in
+                                                   zip(self.models, failures)) + ")"
+                self._emit(self.cb.on_error, result.message + tried)
+                return
+
+    def _attempt(self) -> _Failure | None:
+        """Asks self.model until it answers (None: done, or cancelled) or fails (the failure)."""
         with_tools = self.use_tools
         messages = self._first_messages(with_tools)
 
@@ -193,25 +239,28 @@ class AnalysisJob:
                 self._effort = "minimal"
                 continue
             if result is None or self.cancelled:
-                return  # error already reported, or cancelled
+                return None
+            if isinstance(result, _Failure):
+                return result
             rnd: _Round = result
 
             if not rnd.calls:
                 if not rnd.text.strip():
-                    self._emit(self.cb.on_error, "The model ran out of tokens while thinking. Try again or pick a different model."
-                               if rnd.finish_reason == "length" else
-                               "The model returned an empty response. Try again or pick a different model.")
-                    return
+                    if rnd.finish_reason == "length":
+                        return _Failure("The model ran out of tokens while thinking. Try again or pick a different model.",
+                                        short="ran out of tokens")
+                    return _Failure("The model returned an empty response. Try again or pick a different model.",
+                                    short="empty response")
+                self.used_model = self.model
                 self._emit(self.cb.on_done, rnd.text)
-                return
+                return None
 
             rounds += 1
             if rounds > MAX_TOOL_ROUNDS:
-                self._emit(self.cb.on_error, "The model kept calling tools without answering. Try again.")
-                return
+                return _Failure("The model kept calling tools without answering. Try again.", short="tool loop")
             self._run_tools(messages, rnd, rounds)
             if self.cancelled:
-                return
+                return None
             if rounds == MAX_TOOL_ROUNDS:
                 messages.append({"role": "user", "content": "Tool limit reached. Give your final answer now, without calling tools."})
             self._emit(self.cb.on_status, "Thinking...")
@@ -270,8 +319,8 @@ class AnalysisJob:
         self._last_thinking_emit = now
         self.cb.on_thinking(text, int(now - self._started))
 
-    def _stream(self, messages: list[dict], with_tools: bool, first: bool) -> _Round | str | None:
-        """One streamed request. Returns the round, "no-tools" / "needs-reasoning" (retry), or None (error/cancel)."""
+    def _stream(self, messages: list[dict], with_tools: bool, first: bool) -> _Round | _Failure | str | None:
+        """One streamed request. Returns the round, a failure, "no-tools" / "needs-reasoning" (retry), or None (cancelled)."""
         try:
             self._response = requests.post(
                 OPENROUTER_URL,
@@ -285,8 +334,7 @@ class AnalysisJob:
                 timeout=(15, self.cfg.get("timeout_seconds", 180)),
             )
         except requests.RequestException as exc:
-            self._emit(self.cb.on_error, f"Network error: {exc.__class__.__name__}: {exc}")
-            return None
+            return None if self.cancelled else _Failure(f"Network error: {exc.__class__.__name__}: {exc}")
 
         resp = self._response
         if resp.status_code != 200:
@@ -295,8 +343,10 @@ class AnalysisJob:
                 return "needs-reasoning"
             if with_tools and first and resp.status_code in (400, 404) and "tool" in body.lower():
                 return "no-tools"
-            self._emit(self.cb.on_error, describe_http_error(resp.status_code, body))
-            return None
+            # A bad key fails the same on every model; anything else (rate limit, outage, model
+            # unavailable or rejecting the request) is worth trying on the next model.
+            return _Failure(describe_http_error(resp.status_code, body), fallback=resp.status_code != 401,
+                            short=SHORT_HTTP_REASONS.get(resp.status_code, f"error {resp.status_code}"))
 
         rnd = _Round()
         answering = False  # the answer line has appeared: stream the text to the HUD as the answer
@@ -318,8 +368,7 @@ class AnalysisJob:
                     continue
                 if chunk.get("error"):
                     err = chunk["error"]
-                    self._emit(self.cb.on_error, f"OpenRouter error: {err.get('message', err)}")
-                    return None
+                    return _Failure(f"OpenRouter error: {err.get('message', err)}")
                 choices = chunk.get("choices") or []
                 if not choices:
                     continue
@@ -359,9 +408,8 @@ class AnalysisJob:
         except Exception as exc:  # noqa: BLE001
             # cancel() closes the response from another thread, which can surface as
             # odd errors inside http.client; those are expected and ignored.
-            if not self.cancelled:
-                self._emit(self.cb.on_error, f"Connection lost: {exc.__class__.__name__}: {exc}")
-            return None
+            return None if self.cancelled else _Failure(f"Connection lost: {exc.__class__.__name__}: {exc}",
+                                                        short="connection lost")
         finally:
             resp.close()
         return rnd

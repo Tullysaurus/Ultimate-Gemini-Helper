@@ -47,6 +47,7 @@ class Bridge(QObject):
     progress = pyqtSignal(int, str)
     thinking = pyqtSignal(int, str, int)
     tools = pyqtSignal(int, object)  # list of tool-call entries
+    switch = pyqtSignal(int, str, str)  # next model, why the previous one failed
     done = pyqtSignal(int, str)
     error = pyqtSignal(int, str)
 
@@ -67,12 +68,14 @@ class App(QObject):
         self.last_region: QRect | None = None  # last region box (screenshot pixels), for recapture
         self.last_capture = "capture_screen"   # what a double tap of the menu key repeats
         self.last_raw = ""                     # last answer text (possibly partial), for copy
+        self.last_model: str | None = None     # the model that gave the last answer (retry moves past it)
 
         self.bridge = Bridge()
         self.bridge.status.connect(self._on_status)
         self.bridge.progress.connect(self._on_progress)
         self.bridge.thinking.connect(self._on_thinking)
         self.bridge.tools.connect(self._on_tools)
+        self.bridge.switch.connect(self._on_switch)
         self.bridge.done.connect(self._on_done)
         self.bridge.error.connect(self._on_error)
 
@@ -164,7 +167,7 @@ class App(QObject):
             ("1", "Capture full screen", True),
             ("2", "Capture region", True),
             ("3", "Recapture last region", self._available("3")),
-            ("4", "Retry last image", self._available("4")),
+            ("4", self._retry_label(), self._available("4")),
             ("5", "Copy answer", self._available("5")),
             ("6", "Show answer" if self.answer_hidden else "Hide answer", True),
             ("↑↓", "Scroll  (PgUp/PgDn, Home/End)", True),
@@ -350,10 +353,32 @@ class App(QObject):
         region = self.last_region
         self._grab_without_hud(lambda image: self._analyze(image.copy(region.intersected(image.rect()))))
 
+    def _models(self) -> list[str]:
+        """The main model, then the fallbacks (duplicates dropped)."""
+        fallbacks = self.cfg.get("fallback_models") or []
+        if isinstance(fallbacks, str):
+            fallbacks = [fallbacks]
+        models = [self.cfg.get("model") or config.DEFAULT_MODEL] + [str(m) for m in fallbacks if m]
+        return list(dict.fromkeys(models))
+
+    def _retry_models(self) -> list[str]:
+        """For a retry: start with the model after the one that answered last, then wrap around."""
+        models = self._models()
+        if self.last_model in models:
+            start = (models.index(self.last_model) + 1) % len(models)
+            models = models[start:] + models[:start]
+        return models
+
+    def _retry_label(self) -> str:
+        models = self._models()
+        if len(models) > 1 and self.last_model in models:
+            return f"Retry with {ai.short_model_name(self._retry_models()[0])}"
+        return "Retry last image"
+
     def retry(self) -> None:
-        """Sends the last image again (e.g. after an error or a bad answer)."""
+        """Sends the last image again, to the next model in the list (e.g. after a bad answer)."""
         if self.last_image is not None:
-            self._analyze(self.last_image)
+            self._analyze(self.last_image, self._retry_models())
 
     def _on_region_selected(self, image: QImage, rect: QRect) -> None:
         self.last_region = rect
@@ -375,7 +400,7 @@ class App(QObject):
 
     # ------------------------------------------------------------------ AI
 
-    def _analyze(self, image: QImage) -> None:
+    def _analyze(self, image: QImage, models: list[str] | None = None) -> None:
         key = config.get_api_key()
         self._show_hud()
         if not key:
@@ -393,7 +418,7 @@ class App(QObject):
         self.hud.show_loading("Analyzing...")
         self.job = ai.AnalysisJob(
             api_key=key,
-            model=self.cfg.get("model") or config.DEFAULT_MODEL,
+            models=models or self._models(),
             prompt=self.cfg.get("capture_prompt") or config.DEFAULTS["capture_prompt"],
             get_png=lambda: capture.to_png(image, max_side),
             request_cfg=self.cfg.get("request", {}),
@@ -404,6 +429,7 @@ class App(QObject):
                 on_error=lambda m: self.bridge.error.emit(job_id, m),
                 on_thinking=lambda t, secs: self.bridge.thinking.emit(job_id, t, secs),
                 on_tools=lambda entries: self.bridge.tools.emit(job_id, entries),
+                on_switch=lambda model, why: self.bridge.switch.emit(job_id, model, why),
             ),
             show_thinking_after=float(self.cfg.get("show_thinking_after_seconds", 8)),
             use_tools=bool(self.cfg.get("tools", True)),
@@ -432,7 +458,16 @@ class App(QObject):
         if job_id == self.job_id:
             self.last_raw = text
             self.hud.show_answer(text, final=True)
+            if self.job is not None and self.job.used_model:
+                self.last_model = self.job.used_model
+                if len(self._models()) > 1:  # with fallbacks, say which model answered
+                    self.hud.status.setText(f"Done · {ai.short_model_name(self.last_model)}")
             self.job = None
+
+    def _on_switch(self, job_id: int, model: str, why: str) -> None:
+        if job_id == self.job_id:
+            self.hud.clear()
+            self.hud.show_loading(f"{why.capitalize()} · trying {ai.short_model_name(model)}...")
 
     def _on_error(self, job_id: int, message: str) -> None:
         if job_id == self.job_id:

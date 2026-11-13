@@ -66,6 +66,8 @@ ANSWER ONLY: For every question, multiple choice included, output ONLY the "Corr
 
 DEFAULTS: dict = {
     "model": DEFAULT_MODEL,
+    "fallback_models": [],                # tried in order when the model fails (rate limit, outage, ...);
+                                          # F9, 4 (retry) also switches to the next one
     "capture_prompt": "Answer the question(s) shown in the attached screenshot.",
     "menu_key": "f9",                     # opens the action menu; then press a number or an arrow key (0 cancels)
     "menu_timeout_seconds": 5,            # menu closes by itself after this long without a choice

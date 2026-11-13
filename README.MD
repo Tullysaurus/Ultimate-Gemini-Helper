@@ -58,7 +58,7 @@ Press `F9` to open the action menu, then press a key:
 | `1` | Capture the whole primary monitor and ask |
 | `2` | Drag-select an area and ask (`Esc` or right-click cancels) |
 | `3` | Recapture the last region: a fresh screenshot of the same box (handy when the question is always in the same place) |
-| `4` | Retry: send the last image again (after an error or a bad answer) |
+| `4` | Retry: send the last image again (after an error or a bad answer); with fallback models it goes to the next model |
 | `5` | Copy the answer to the clipboard, without the option number (`3. Anwser` copies as `Anwser`; several answers go on separate lines) |
 | `6` | Hide / show the answer panel (the app stays enabled; the next capture or scroll shows it again) |
 | `↑` / `↓` | Scroll the explanation (hold to repeat; the answer stays pinned at the top) |
@@ -74,6 +74,8 @@ Options that can't be used yet (for example, Retry before your first capture) ar
 A tiny dot in the top-right corner of the screen shows the state: green when enabled, red when disabled. It stays visible while the app is hidden (it only disappears for the instant of a capture). While disabled, `F9` still opens the menu, but only `9` (enable) and `0` work. The app starts enabled every launch, and can also be toggled from the tray menu.
 
 **Answer format.** For multiple choice, the answer shows the option's position (counted left-to-right, then top-to-bottom) and its text copied exactly, typos included, for example `3. Anwser`. Free-response answers show just the answer, with no explanation. Set `"explanations": false` to drop the explanation for multiple choice too, so every answer is just the answer line.
+
+**Fallback models.** List backups in `fallback_models`, e.g. `"fallback_models": ["anthropic/claude-haiku-5.5"]`. If the main model is rate limited, out of credits, down or fails mid-answer, the next one is tried automatically (the header says which, e.g. "Rate limited · trying claude-haiku-5.5..."), and once there are fallbacks the header also shows which model answered. `F9`, `4` (retry) sends the last image to the next model in the list instead of the same one.
 
 Change the menu key (`menu_key`), model, prompt, HUD corner, width and opacity in `config.json` (tray menu → **Open settings file**), then choose **Reload settings**. Each capture is a separate question; there are no follow-ups.
 
