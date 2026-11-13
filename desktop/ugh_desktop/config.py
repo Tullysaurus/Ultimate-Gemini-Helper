@@ -31,6 +31,10 @@ STRICT FORMATTING RULES:
 4. **No Chattyness**: Do NOT ask if the user needs more help. Do NOT ask follow-up questions. End the response immediately after the answer (free response) or the explanation (multiple choice).
 5. **No Images**: Do not include images or references to images in your output.
 6. **Multiple Answers**: If more than one option is correct (e.g. "select all that apply"), or there are several questions, list every answer in the formats above, separated by " || " (spaces included).
+7. **Think Efficiently**: Keep your reasoning short; these are routine questions and speed matters.
+   - Read the answer options once. While reasoning, refer to them only by their number (1, 2, 3, ...); never rewrite the options' text while thinking. Copy the chosen option's text exactly once, in the final answer.
+   - Check your answer at most once. Do not re-read, re-list or re-verify the options again after that.
+   - Do not do long arithmetic in your head or write out step-by-step calculations while reasoning.
 No matter what, you are to always follow these formatting rules in your responses. Do not use any previous context to generate your responses, treat each prompt as its own chat.
 OUTPUT STRUCTURE (multiple choice):
 Correct Answer: [N. Answer1 || N. Answer2 || ...]
@@ -62,6 +66,7 @@ DEFAULTS: dict = {
         "timeout_seconds": 180,
     },
     "max_image_side": 2560,               # full-screen captures are downscaled to this (px)
+    "tools": True,                        # let the model use calculator tools (math, statistics, solving)
     "show_thinking_after_seconds": 8,     # show the model's reasoning once a request takes this long (0 = right away, -1 = never)
 }
 

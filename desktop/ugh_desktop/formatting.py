@@ -199,6 +199,27 @@ def format_answer(raw: str, add_math: MathRenderer) -> tuple[str, str]:
     return boxes, f'<div style="color:{TEXT_COLOR}">{explanation}</div>'
 
 
+TOOL_ROWS_MAX = 8  # only the most recent tool calls are listed
+_TOOL_ICONS = {"running": ("◌", "#1a73e8"), "done": ("✓", "#1e8e3e"), "error": ("✗", "#d93025")}
+
+
+def format_tool_calls(entries: list[dict]) -> str:
+    """The calculator calls made so far, one compact row each: icon, what was asked, short result."""
+    shown = entries[-TOOL_ROWS_MAX:]
+    rows = []
+    if len(entries) > len(shown):
+        rows.append(f'<tr><td></td><td style="color:#80868b">+ {len(entries) - len(shown)} earlier</td></tr>')
+    for entry in shown:
+        icon, color = _TOOL_ICONS.get(entry.get("status"), _TOOL_ICONS["running"])
+        result = entry.get("summary") or ("…" if entry.get("status") == "running" else "")
+        result_html = f'<br><span style="color:#80868b">{html.escape(result)}</span>' if result else ""
+        rows.append(
+            f'<tr><td valign="top" style="color:{color}; font-weight:700; padding-right:8px">{icon}</td>'
+            f'<td style="color:#3c4043">{html.escape(entry.get("label", ""))}{result_html}</td></tr>'
+        )
+    return f'<table cellspacing="0" cellpadding="2" style="font-size:9pt">{"".join(rows)}</table>'
+
+
 THINKING_MAX_CHARS = 6000  # only the tail of very long reasoning is shown
 
 

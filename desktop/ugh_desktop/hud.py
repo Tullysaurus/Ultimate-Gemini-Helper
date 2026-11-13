@@ -131,6 +131,9 @@ class Hud(QWidget):
         self.cfg = hud_cfg
         self._math_cache: dict[tuple, tuple[str, int, int]] = {}
         self._math_counter = 0
+        self._tools: list[dict] = []   # tool calls of the current question (activity view)
+        self._thinking = ""            # reasoning of the current question
+        self._loading_status = ""
 
         card = QFrame(self)
         card.setObjectName("card")
@@ -170,6 +173,9 @@ class Hud(QWidget):
             browser.setOpenLinks(False)
             browser.document().setDocumentMargin(16)
         self.answer.images = self.body.images  # math images are shared
+        # A scroll area's default minimum height (~70px) would squeeze the pinned area when the body
+        # holds a single line; _relayout sizes the window to fit both instead.
+        self.body.setMinimumHeight(1)
         self.answer.hide()
         layout.addWidget(self.answer)
         layout.addWidget(self.body, 1)
@@ -291,28 +297,55 @@ class Hud(QWidget):
 
     def clear(self) -> None:
         self.body.setProperty("is_thinking", False)
+        self._tools = []
+        self._thinking = ""
+        self._loading_status = ""
         self.answer.clear()
         self.answer.hide()
         self.body.clear()
 
+    # While a question is being worked on, the HUD shows "activity": the tool calls pinned at the
+    # top (where the answer will go) and the thinking (or a status line) scrolling below them.
+    # The answer replaces all of it.
+
+    def _render_activity(self) -> None:
+        tools_html = formatting.format_tool_calls(self._tools) if self._tools else None
+        thinking = self._thinking
+        bar = self.body.verticalScrollBar()
+        was_thinking = self.body.property("is_thinking") is True
+        follow = not was_thinking or bar.value() >= bar.maximum() - 4
+        self.body.setProperty("is_message", True)
+        if thinking:
+            self.body.setProperty("is_thinking", True)
+            body = formatting.format_thinking(thinking)
+        else:
+            body = formatting.format_message(self._loading_status or "Thinking...", "#5f6368")
+        self._set_html(body, keep_scroll=True, answer_html=tools_html)
+        if thinking and follow:
+            bar.setValue(bar.maximum())  # follow the newest reasoning unless scrolled up
+
     def show_loading(self, status: str) -> None:
         self.status.setText(status)
         self.spinner.start()
-        if not self.body.toPlainText().strip() or self.body.property("is_message"):
+        self._loading_status = status
+        if self._tools and not self._thinking:
+            self._render_activity()
+        elif not self.body.toPlainText().strip() or (self.body.property("is_message") and not self._thinking):
             self.body.setProperty("is_message", True)
             self._set_html(formatting.format_message(status, "#5f6368"), keep_scroll=False)
+
+    def show_tools(self, entries: list[dict]) -> None:
+        """Tool calls so far ({"label", "status": running|done|error, "summary"}), shown pinned at the top."""
+        self._tools = entries
+        self.spinner.start()
+        self._render_activity()
 
     def show_thinking(self, text: str, seconds: int) -> None:
         """Live reasoning in the body; follows the newest text unless scrolled up."""
         self.status.setText(f"Thinking... {seconds}s")
         self.spinner.start()
-        bar = self.body.verticalScrollBar()
-        follow = self.body.property("is_thinking") is not True or bar.value() >= bar.maximum() - 4
-        self.body.setProperty("is_message", True)
-        self.body.setProperty("is_thinking", True)
-        self._set_html(formatting.format_thinking(text), keep_scroll=True)
-        if follow:
-            bar.setValue(bar.maximum())
+        self._thinking = text
+        self._render_activity()
 
     def show_answer(self, raw: str, final: bool) -> None:
         # Coming from a status message or the thinking text: start the answer at the top.

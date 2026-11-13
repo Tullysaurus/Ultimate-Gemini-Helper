@@ -9,7 +9,7 @@ from PyQt6.QtCore import QLockFile, QObject, QRect, QTimer, pyqtSignal
 from PyQt6.QtGui import QImage
 from PyQt6.QtWidgets import QApplication, QInputDialog, QLineEdit, QMenu, QMessageBox, QSystemTrayIcon
 
-from . import ai, capture, config, formatting
+from . import ai, capture, config, formatting, tools
 from .hotkeys import HotkeyManager, pretty
 from .hud import ActionMenu, Hud, StatusDot
 from .icons import app_icon
@@ -46,6 +46,7 @@ class Bridge(QObject):
     status = pyqtSignal(int, str)
     progress = pyqtSignal(int, str)
     thinking = pyqtSignal(int, str, int)
+    tools = pyqtSignal(int, object)  # list of tool-call entries
     done = pyqtSignal(int, str)
     error = pyqtSignal(int, str)
 
@@ -71,6 +72,7 @@ class App(QObject):
         self.bridge.status.connect(self._on_status)
         self.bridge.progress.connect(self._on_progress)
         self.bridge.thinking.connect(self._on_thinking)
+        self.bridge.tools.connect(self._on_tools)
         self.bridge.done.connect(self._on_done)
         self.bridge.error.connect(self._on_error)
 
@@ -100,6 +102,8 @@ class App(QObject):
         self.hud.show()
         self.dot.place()
         self.dot.show()
+        if self.cfg.get("tools", True):
+            QTimer.singleShot(1500, tools.prewarm)  # start the calculator process once the UI is up
 
     # ------------------------------------------------------------------ setup
 
@@ -399,8 +403,10 @@ class App(QObject):
                 on_done=lambda t: self.bridge.done.emit(job_id, t),
                 on_error=lambda m: self.bridge.error.emit(job_id, m),
                 on_thinking=lambda t, secs: self.bridge.thinking.emit(job_id, t, secs),
+                on_tools=lambda entries: self.bridge.tools.emit(job_id, entries),
             ),
             show_thinking_after=float(self.cfg.get("show_thinking_after_seconds", 8)),
+            use_tools=bool(self.cfg.get("tools", True)),
         )
         self.job.start()
 
@@ -411,6 +417,10 @@ class App(QObject):
     def _on_thinking(self, job_id: int, text: str, seconds: int) -> None:
         if job_id == self.job_id:
             self.hud.show_thinking(text, seconds)
+
+    def _on_tools(self, job_id: int, entries: list) -> None:
+        if job_id == self.job_id:
+            self.hud.show_tools(entries)
 
     def _on_progress(self, job_id: int, text: str) -> None:
         if job_id == self.job_id:
@@ -452,6 +462,7 @@ class App(QObject):
         if self.job:
             self.job.cancel()
         self.hotkeys.stop()
+        tools.shutdown()
         self.tray.hide()
         self.qapp.quit()
 
